@@ -63,7 +63,7 @@ CRLFILE = data_file("revocation.crl")
 SIGNED_CERTFILE = data_file("keycert3.pem")
 SIGNED_CERTFILE2 = data_file("keycert4.pem")
 # Same certificate as pycacert.pem, but without extra text in file
-SIGNING_CA = data_file("capath", "ceff1710.0")
+SIGNING_CA = data_file("capath", "95789e36.0")
 # cert with all kinds of subject alt names
 ALLSANFILE = data_file("allsans.pem")
 
@@ -84,6 +84,11 @@ OP_NO_COMPRESSION = getattr(ssl, "OP_NO_COMPRESSION", 0)
 OP_SINGLE_DH_USE = getattr(ssl, "OP_SINGLE_DH_USE", 0)
 OP_SINGLE_ECDH_USE = getattr(ssl, "OP_SINGLE_ECDH_USE", 0)
 OP_CIPHER_SERVER_PREFERENCE = getattr(ssl, "OP_CIPHER_SERVER_PREFERENCE", 0)
+
+# keycert.pem values
+NOTBEFORE = 'May  2 08:39:33 2017 GMT'
+NOTAFTER = 'Apr 30 08:39:33 2027 GMT'
+SERIAL = 'B1F29CD0675F8EBB'
 
 
 def handle_error(prefix):
@@ -253,9 +258,9 @@ class BasicSocketTests(unittest.TestCase):
                           (('commonName', 'localhost'),))
                         )
         # Note the next three asserts will fail if the keys are regenerated
-        self.assertEqual(p['notAfter'], asn1time('Oct  5 23:01:56 2020 GMT'))
-        self.assertEqual(p['notBefore'], asn1time('Oct  8 23:01:56 2010 GMT'))
-        self.assertEqual(p['serialNumber'], 'D7C7381919AFC24E')
+        self.assertEqual(p['notAfter'], asn1time(NOTAFTER))
+        self.assertEqual(p['notBefore'], asn1time(NOTBEFORE))
+        self.assertEqual(p['serialNumber'], SERIAL)
         self.assertEqual(p['subject'],
                          ((('countryName', 'XY'),),
                           (('localityName', 'Castle Anthrax'),),
@@ -1483,6 +1488,7 @@ class SimpleBackgroundTests(unittest.TestCase):
             self.assertTrue(s.getpeercert())
             self.assertFalse(s.server_side)
 
+
     def test_connect_fail(self):
         # This should fail because we have no verification certs. Connection
         # failure crashes ThreadedEchoServer, so run this in an independent
@@ -2259,8 +2265,8 @@ if _have_threads:
 
         for ctx in (client_context, server_context):
             ctx.verify_mode = certsreqs
-            ctx.load_cert_chain(CERTFILE)
-            ctx.load_verify_locations(CERTFILE)
+            ctx.load_cert_chain(SIGNED_CERTFILE)
+            ctx.load_verify_locations(SIGNING_CA)
         try:
             stats = server_params_test(client_context, server_context,
                                        chatty=False, connectionchatty=False)
@@ -2344,8 +2350,8 @@ if _have_threads:
                 sys.stdout.write("\n")
             context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             context.verify_mode = ssl.CERT_REQUIRED
-            context.load_verify_locations(CERTFILE)
-            context.load_cert_chain(CERTFILE)
+            context.load_verify_locations(SIGNING_CA)
+            context.load_cert_chain(SIGNED_CERTFILE)
             server = ThreadedEchoServer(context=context, chatty=False)
             with server:
                 s = context.wrap_socket(socket.socket(),
@@ -2736,7 +2742,7 @@ if _have_threads:
 
         def test_socketserver(self):
             """Using socketserver to create and manage SSL connections."""
-            server = make_https_server(self, certfile=CERTFILE)
+            server = make_https_server(self, certfile=SIGNED_CERTFILE)
             # try to connect
             if support.verbose:
                 sys.stdout.write('\n')
@@ -2746,7 +2752,7 @@ if _have_threads:
             # now fetch the same data from the HTTPS server
             url = 'https://localhost:%d/%s' % (
                 server.port, os.path.split(CERTFILE)[1])
-            context = ssl.create_default_context(cafile=CERTFILE)
+            context = ssl.create_default_context(cafile=SIGNING_CA)
             f = urllib.request.urlopen(url, context=context)
             try:
                 dlen = f.info().get("content-length")
@@ -3023,8 +3029,8 @@ if _have_threads:
             # SSLContext.wrap_socket().
             context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             context.verify_mode = ssl.CERT_REQUIRED
-            context.load_verify_locations(CERTFILE)
-            context.load_cert_chain(CERTFILE)
+            context.load_verify_locations(SIGNING_CA)
+            context.load_cert_chain(SIGNED_CERTFILE)
             server = socket.socket(socket.AF_INET)
             host = "127.0.0.1"
             port = support.bind_port(server)
@@ -3438,8 +3444,8 @@ if _have_threads:
         def test_read_write_after_close_raises_valuerror(self):
             context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             context.verify_mode = ssl.CERT_REQUIRED
-            context.load_verify_locations(CERTFILE)
-            context.load_cert_chain(CERTFILE)
+            context.load_verify_locations(SIGNING_CA)
+            context.load_cert_chain(SIGNED_CERTFILE)
             server = ThreadedEchoServer(context=context, chatty=False)
 
             with server:
@@ -3457,8 +3463,8 @@ if _have_threads:
             self.addCleanup(support.unlink, support.TESTFN)
             context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             context.verify_mode = ssl.CERT_REQUIRED
-            context.load_verify_locations(CERTFILE)
-            context.load_cert_chain(CERTFILE)
+            context.load_verify_locations(SIGNING_CA)
+            context.load_cert_chain(SIGNED_CERTFILE)
             server = ThreadedEchoServer(context=context, chatty=False)
             with server:
                 with context.wrap_socket(socket.socket()) as s:
@@ -3526,13 +3532,13 @@ if _have_threads:
         def test_session_handling(self):
             context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             context.verify_mode = ssl.CERT_REQUIRED
-            context.load_verify_locations(CERTFILE)
-            context.load_cert_chain(CERTFILE)
+            context.load_verify_locations(SIGNING_CA)
+            context.load_cert_chain(SIGNED_CERTFILE)
 
             context2 = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             context2.verify_mode = ssl.CERT_REQUIRED
-            context2.load_verify_locations(CERTFILE)
-            context2.load_cert_chain(CERTFILE)
+            context2.load_verify_locations(SIGNING_CA)
+            context2.load_cert_chain(SIGNED_CERTFILE)
 
             server = ThreadedEchoServer(context=context, chatty=False)
             with server:
