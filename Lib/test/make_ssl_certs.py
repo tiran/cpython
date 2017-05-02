@@ -1,6 +1,7 @@
 """Make the custom certificate and private key files used by test_ssl
 and friends."""
 
+import glob
 import os
 import shutil
 import tempfile
@@ -8,9 +9,13 @@ from subprocess import *
 
 req_template = """
     [req]
-    distinguished_name     = req_distinguished_name
-    x509_extensions        = req_x509_extensions
+    distinguished_name     = {dn}
+    x509_extensions        = {ext}
     prompt                 = no
+    default_bits           = 2048
+    default_md             = sha256
+    utf8                   = yes
+    string_mask            = utf8only
 
     [req_distinguished_name]
     C                      = XY
@@ -18,12 +23,20 @@ req_template = """
     O                      = Python Software Foundation
     CN                     = {hostname}
 
-    [req_x509_extensions]
+    [leaf_extensions]
+    subjectAltName         = @san
+    keyUsage               = critical,digitalSignature,keyEncipherment
+    extendedKeyUsage       = serverAuth,clientAuth
+    subjectKeyIdentifier   = hash
+    authorityKeyIdentifier = keyid:always
+    basicConstraints       = CA:false
+
+    [selfsigned_extensions]
     subjectAltName         = @san
 
     [san]
     DNS.1 = {hostname}
-    {extra_san}
+    {extra_sans}
 
     [dir_sect]
     C                      = XY
@@ -42,64 +55,69 @@ req_template = """
     [principals]
     princ1 = GeneralString:username
 
-    [ ca ]
-    default_ca      = CA_default
+    [ca_distinguished_name]
+    C                      = XY
+    L                      = Castle Anthrax
+    O                      = Python Software Foundation CA
+    CN                     = our-ca-server
 
-    [ CA_default ]
-    dir = cadir
-    database  = $dir/index.txt
-    crlnumber = $dir/crl.txt
-    default_md = sha1
-    default_days = 3600
-    default_crl_days = 3600
-    certificate = pycacert.pem
-    private_key = pycakey.pem
-    serial    = $dir/serial
-    RANDFILE  = $dir/.rand
+    [ca_extensions]
+    keyUsage               = critical,keyCertSign,cRLSign
+    subjectKeyIdentifier   = hash
+    authorityKeyIdentifier = keyid:always
+    basicConstraints       = CA:true
 
-    policy          = policy_match
+    [ca]
+    default_ca             = CA_default
 
-    [ policy_match ]
-    countryName             = match
+    [CA_default]
+    dir                    = cadir
+    database               = $dir/index.txt
+    crlnumber              = $dir/crl.txt
+    default_md             = sha256
+    default_days           = 3600
+    default_crl_days       = 3600
+    name_opt               = multiline,-esc_msb,utf8
+    certificate            = pycacert.pem
+    private_key            = pycakey.pem
+    serial                 = $dir/serial
+    RANDFILE               = $dir/.rand
+    policy                 = policy_anything
+
+    [policy_anything]
+    countryName             = optional
     stateOrProvinceName     = optional
-    organizationName        = match
+    localityName            = optional
+    organizationName        = optional
     organizationalUnitName  = optional
     commonName              = supplied
     emailAddress            = optional
-
-    [ policy_anything ]
-    countryName   = optional
-    stateOrProvinceName = optional
-    localityName    = optional
-    organizationName  = optional
-    organizationalUnitName  = optional
-    commonName    = supplied
-    emailAddress    = optional
-
-
-    [ v3_ca ]
-
-    subjectKeyIdentifier=hash
-    authorityKeyIdentifier=keyid:always,issuer
-    basicConstraints = CA:true
-
     """
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-def make_cert_key(hostname, sign=False, extra_san=''):
+
+def make_cert_key(hostname, sign=False, ext='leaf_extensions', extra_sans=()):
     print("creating cert for " + hostname)
     tempnames = []
     for i in range(3):
         with tempfile.NamedTemporaryFile(delete=False) as f:
             tempnames.append(f.name)
     req_file, cert_file, key_file = tempnames
+
+    params = dict(
+        hostname=hostname,
+        extra_sans='\n'.join(extra_sans),
+        ext=ext,
+        dn='req_distinguished_name',
+    )
+
     try:
-        req = req_template.format(hostname=hostname, extra_san=extra_san)
+        req = req_template.format(**params)
         with open(req_file, 'w') as f:
             f.write(req)
         args = ['req', '-new', '-days', '3650', '-nodes',
-                '-newkey', 'rsa:1024', '-keyout', key_file,
+                '-newkey', 'rsa:2048', '-keyout', key_file,
                 '-config', req_file]
         if sign:
             with tempfile.NamedTemporaryFile(delete=False) as f:
@@ -113,7 +131,8 @@ def make_cert_key(hostname, sign=False, extra_san=''):
 
         if sign:
             args = ['ca', '-config', req_file, '-out', cert_file, '-outdir', 'cadir',
-                    '-policy', 'policy_anything', '-batch', '-infiles', reqfile ]
+                    '-policy', 'policy_anything', '-extensions', ext,
+                    '-batch', '-infiles', reqfile ]
             check_call(['openssl'] + args)
 
 
@@ -126,13 +145,19 @@ def make_cert_key(hostname, sign=False, extra_san=''):
         for name in tempnames:
             os.remove(name)
 
+
 TMP_CADIR = 'cadir'
+
 
 def unmake_ca():
     shutil.rmtree(TMP_CADIR)
 
+
 def make_ca():
+    if os.path.isdir(TMP_CADIR):
+        unmake_ca()
     os.mkdir(TMP_CADIR)
+
     with open(os.path.join('cadir','index.txt'),'a+') as f:
         pass # empty file
     with open(os.path.join('cadir','crl.txt'),'a+') as f:
@@ -140,26 +165,59 @@ def make_ca():
     with open(os.path.join('cadir','index.txt.attr'),'w+') as f:
         f.write('unique_subject = no')
 
+    params = dict(
+        hostname='',
+        extra_sans='',
+        ext='ca_extensions',
+        dn='ca_distinguished_name',
+    )
+
     with tempfile.NamedTemporaryFile("w") as t:
-        t.write(req_template.format(hostname='our-ca-server', extra_san=''))
+        t.write(req_template.format(**params))
         t.flush()
         with tempfile.NamedTemporaryFile() as f:
-            args = ['req', '-new', '-days', '3650', '-extensions', 'v3_ca', '-nodes',
+            args = ['req', '-config', t.name, '-new', '-days', '3650', '-nodes',
                     '-newkey', 'rsa:2048', '-keyout', 'pycakey.pem',
-                    '-out', f.name,
-                    '-subj', '/C=XY/L=Castle Anthrax/O=Python Software Foundation CA/CN=our-ca-server']
+                    '-out', f.name]
             check_call(['openssl'] + args)
             args = ['ca', '-config', t.name, '-create_serial',
                     '-out', 'pycacert.pem', '-batch', '-outdir', TMP_CADIR,
                     '-keyfile', 'pycakey.pem', '-days', '3650',
-                    '-selfsign', '-extensions', 'v3_ca', '-infiles', f.name ]
+                    '-extensions', 'ca_extensions',
+                    '-selfsign', '-infiles', f.name ]
             check_call(['openssl'] + args)
             args = ['ca', '-config', t.name, '-gencrl', '-out', 'revocation.crl']
             check_call(['openssl'] + args)
 
+
+def rehash():
+    capath = os.path.join(here, 'capath')
+
+    # remove existing hash files
+    for name in glob.glob(os.path.join(capath, '*.?')):
+        os.unlink(name)
+
+    # copy pycacert.pem without header
+    args = ['x509', '-in', os.path.join(here, 'pycacert.pem'),
+            '-out', os.path.join(capath, 'pycacert.pem')]
+    check_output(['openssl'] + args)
+
+    # new hashes
+    check_output(['c_rehash', '-v', capath])
+    # old hashes with no delete
+    check_output(['c_rehash', '-v', '-n', '-old', capath])
+
+    # replace symlinks with files
+    for hashfile in glob.glob(os.path.join(capath, '*.?')):
+        orig = os.readlink(hashfile)
+        orig = os.path.join(os.path.dirname(hashfile), orig)
+        os.unlink(hashfile)
+        shutil.copyfile(orig, hashfile)
+
+
 if __name__ == '__main__':
     os.chdir(here)
-    cert, key = make_cert_key('localhost')
+    cert, key = make_cert_key('localhost', ext='selfsigned_extensions')
     with open('ssl_cert.pem', 'w') as f:
         f.write(cert)
     with open('ssl_key.pem', 'w') as f:
@@ -182,7 +240,8 @@ if __name__ == '__main__':
         f.write(key)
         f.write(cert)
 
-    cert, key = make_cert_key('localhost', True)
+    extra_sans = ['IP.1 = 127.0.0.1', 'IP.2 = ::1',]
+    cert, key = make_cert_key('localhost', True, extra_sans=extra_sans)
     with open('keycert3.pem', 'w') as f:
         f.write(key)
         f.write(cert)
@@ -192,7 +251,7 @@ if __name__ == '__main__':
         f.write(key)
         f.write(cert)
 
-    extra_san = [
+    extra_sans = [
         'otherName.1 = 1.2.3.4;UTF8:some other identifier',
         'otherName.2 = 1.3.6.1.5.2.2;SEQUENCE:princ_name',
         'email.1 = user@example.org',
@@ -206,11 +265,19 @@ if __name__ == '__main__':
         'RID.1 = 1.2.3.4.5',
     ]
 
-    cert, key = make_cert_key('allsans', extra_san='\n'.join(extra_san))
+    cert, key = make_cert_key('allsans', extra_sans=extra_sans)
     with open('allsans.pem', 'w') as f:
         f.write(key)
         f.write(cert)
 
+    rehash()
     unmake_ca()
-    print("\n\nPlease change the values in test_ssl.py, test_parse_cert function related to notAfter,notBefore and serialNumber")
-    check_call(['openssl','x509','-in','keycert.pem','-dates','-serial','-noout'])
+
+    print("\n\nPlease change the values in test_ssl.py after 'keycert.pem values'")
+    out = check_output([
+        'openssl', 'x509', '-in', 'keycert.pem', '-dates', '-serial', '-noout'
+    ])
+    out = out.decode('ascii').strip()
+    for line in out.split('\n'):
+        k, v = line.split('=', 1)
+        print("{0} = '{1}'".format(k.upper(), v))
