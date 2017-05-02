@@ -67,11 +67,7 @@ def _test_get_event_loop_new_process__sub_proc():
     return loop.run_until_complete(doit())
 
 
-ONLYCERT = data_file('ssl_cert.pem')
-ONLYKEY = data_file('ssl_key.pem')
-SIGNED_CERTFILE = data_file('keycert3.pem')
-SIGNING_CA = data_file('pycacert.pem')
-PEERCERT = {'serialNumber': 'B09264B1F2DA21D1',
+PEERCERT = {'serialNumber': support.CERT_SERIAL,
             'version': 1,
             'subject': ((('countryName', 'XY'),),
                     (('localityName', 'Castle Anthrax'),),
@@ -80,8 +76,8 @@ PEERCERT = {'serialNumber': 'B09264B1F2DA21D1',
             'issuer': ((('countryName', 'XY'),),
                     (('organizationName', 'Python Software Foundation CA'),),
                     (('commonName', 'our-ca-server'),)),
-            'notAfter': 'Nov 13 19:47:07 2022 GMT',
-            'notBefore': 'Jan  4 19:47:07 2013 GMT'}
+            'notAfter': support.CERT_NOTAFTER,
+            'notBefore': support.CERT_NOTBEFORE}
 
 
 class MyBaseProto(asyncio.Protocol):
@@ -825,7 +821,7 @@ class EventLoopTestsMixin:
                 )
 
         server_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-        server_context.load_cert_chain(ONLYCERT, ONLYKEY)
+        server_context.load_cert_chain(support.CERT_ONLY, support.CERT_KEY)
         if hasattr(server_context, 'check_hostname'):
             server_context.check_hostname = False
         server_context.verify_mode = ssl.CERT_NONE
@@ -1009,7 +1005,7 @@ class EventLoopTestsMixin:
     def test_create_server_ssl(self):
         proto = MyProto(loop=self.loop)
         server, host, port = self._make_ssl_server(
-            lambda: proto, ONLYCERT, ONLYKEY)
+            lambda: proto, support.CERT_ONLY, support.CERT_KEY)
 
         f_c = self.loop.create_connection(MyBaseProto, host, port,
                                           ssl=test_utils.dummy_ssl_context())
@@ -1046,7 +1042,7 @@ class EventLoopTestsMixin:
     def test_create_unix_server_ssl(self):
         proto = MyProto(loop=self.loop)
         server, path = self._make_ssl_unix_server(
-            lambda: proto, ONLYCERT, ONLYKEY)
+            lambda: proto, support.CERT_ONLY, support.CERT_KEY)
 
         f_c = self.loop.create_unix_connection(
             MyBaseProto, path, ssl=test_utils.dummy_ssl_context(),
@@ -1080,7 +1076,7 @@ class EventLoopTestsMixin:
     def test_create_server_ssl_verify_failed(self):
         proto = MyProto(loop=self.loop)
         server, host, port = self._make_ssl_server(
-            lambda: proto, SIGNED_CERTFILE)
+            lambda: proto, support.CERT_SIGNED)
 
         sslcontext_client = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         sslcontext_client.options |= ssl.OP_NO_SSLv2
@@ -1114,7 +1110,7 @@ class EventLoopTestsMixin:
     def test_create_unix_server_ssl_verify_failed(self):
         proto = MyProto(loop=self.loop)
         server, path = self._make_ssl_unix_server(
-            lambda: proto, SIGNED_CERTFILE)
+            lambda: proto, support.CERT_SIGNED)
 
         sslcontext_client = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         sslcontext_client.options |= ssl.OP_NO_SSLv2
@@ -1148,13 +1144,13 @@ class EventLoopTestsMixin:
     def test_create_server_ssl_match_failed(self):
         proto = MyProto(loop=self.loop)
         server, host, port = self._make_ssl_server(
-            lambda: proto, SIGNED_CERTFILE)
+            lambda: proto, support.CERT_SIGNED)
 
         sslcontext_client = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         sslcontext_client.options |= ssl.OP_NO_SSLv2
         sslcontext_client.verify_mode = ssl.CERT_REQUIRED
         sslcontext_client.load_verify_locations(
-            cafile=SIGNING_CA)
+            cafile=support.SIGNING_CA)
         if hasattr(sslcontext_client, 'check_hostname'):
             sslcontext_client.check_hostname = True
 
@@ -1181,12 +1177,12 @@ class EventLoopTestsMixin:
     def test_create_unix_server_ssl_verified(self):
         proto = MyProto(loop=self.loop)
         server, path = self._make_ssl_unix_server(
-            lambda: proto, SIGNED_CERTFILE)
+            lambda: proto, support.CERT_SIGNED)
 
         sslcontext_client = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         sslcontext_client.options |= ssl.OP_NO_SSLv2
         sslcontext_client.verify_mode = ssl.CERT_REQUIRED
-        sslcontext_client.load_verify_locations(cafile=SIGNING_CA)
+        sslcontext_client.load_verify_locations(cafile=support.SIGNING_CA)
         if hasattr(sslcontext_client, 'check_hostname'):
             sslcontext_client.check_hostname = True
 
@@ -1210,12 +1206,12 @@ class EventLoopTestsMixin:
     def test_create_server_ssl_verified(self):
         proto = MyProto(loop=self.loop)
         server, host, port = self._make_ssl_server(
-            lambda: proto, SIGNED_CERTFILE)
+            lambda: proto, support.CERT_SIGNED)
 
         sslcontext_client = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         sslcontext_client.options |= ssl.OP_NO_SSLv2
         sslcontext_client.verify_mode = ssl.CERT_REQUIRED
-        sslcontext_client.load_verify_locations(cafile=SIGNING_CA)
+        sslcontext_client.load_verify_locations(cafile=support.SIGNING_CA)
         if hasattr(sslcontext_client, 'check_hostname'):
             sslcontext_client.check_hostname = True
 

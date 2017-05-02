@@ -21,7 +21,7 @@ req_template = """
     C                      = XY
     L                      = Castle Anthrax
     O                      = Python Software Foundation
-    CN                     = {hostname}
+    CN                     = {cn}
 
     [leaf_extensions]
     subjectAltName         = @san
@@ -97,7 +97,8 @@ req_template = """
 here = os.path.abspath(os.path.dirname(__file__))
 
 
-def make_cert_key(hostname, sign=False, ext='leaf_extensions', extra_sans=()):
+def make_cert_key(hostname, sign=False, ext='leaf_extensions',
+                  extra_sans=(), cn=None):
     print("creating cert for " + hostname)
     tempnames = []
     for i in range(3):
@@ -107,6 +108,7 @@ def make_cert_key(hostname, sign=False, ext='leaf_extensions', extra_sans=()):
 
     params = dict(
         hostname=hostname,
+        cn=cn if cn is not None else hostname,
         extra_sans='\n'.join(extra_sans),
         ext=ext,
         dn='req_distinguished_name',
@@ -167,6 +169,7 @@ def make_ca():
 
     params = dict(
         hostname='',
+        cn=None,
         extra_sans='',
         ext='ca_extensions',
         dn='ca_distinguished_name',
@@ -240,14 +243,28 @@ if __name__ == '__main__':
         f.write(key)
         f.write(cert)
 
-    extra_sans = ['IP.1 = 127.0.0.1', 'IP.2 = ::1',]
-    cert, key = make_cert_key('localhost', True, extra_sans=extra_sans)
+    cert, key = make_cert_key('localhost', True)
     with open('keycert3.pem', 'w') as f:
         f.write(key)
         f.write(cert)
+    #with open('keycert3_cert.pem', 'w') as f:
+    #    f.write(cert)
+    #with open('keycert3_key.pem', 'w') as f:
+    #    f.write(key)
+    #check_call([
+    #    'openssl', 'rsa', '-in', 'keycert3_key.pem',
+    #    '-out', 'keycert3_key.passwd.pem', '-des3', '-passout', 'pass:somepass'
+    #])
 
     cert, key = make_cert_key('fakehostname', True)
     with open('keycert4.pem', 'w') as f:
+        f.write(key)
+        f.write(cert)
+
+    extra_sans = ['IP.1 = 127.0.0.1', 'IP.2 = ::1', ]
+    cert, key = make_cert_key('localhost', True,  cn='SAN only',
+                              extra_sans=extra_sans)
+    with open('sanonly.pem', 'w') as f:
         f.write(key)
         f.write(cert)
 
@@ -273,11 +290,11 @@ if __name__ == '__main__':
     rehash()
     unmake_ca()
 
-    print("\n\nPlease change the values in test_ssl.py after 'keycert.pem values'")
+    print("\n\nPlease change the values in Lib/test/support/__init__.py")
     out = check_output([
-        'openssl', 'x509', '-in', 'keycert.pem', '-dates', '-serial', '-noout'
+        'openssl', 'x509', '-in', 'keycert3.pem', '-dates', '-serial', '-noout'
     ])
     out = out.decode('ascii').strip()
     for line in out.split('\n'):
         k, v = line.split('=', 1)
-        print("{0} = '{1}'".format(k.upper(), v))
+        print("CERT_{0} = '{1}'".format(k.upper(), v))

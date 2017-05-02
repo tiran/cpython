@@ -110,6 +110,14 @@ __all__ = [
     "run_with_tz", "PGO", "missing_compiler_executable",
     ]
 
+# TEST_HOME_DIR refers to the top level directory of the "test" package
+# that contains Python's regression test suite
+TEST_SUPPORT_DIR = os.path.dirname(os.path.abspath(__file__))
+TEST_HOME_DIR = os.path.dirname(TEST_SUPPORT_DIR)
+
+# TEST_DATA_DIR is used as a target download location for remote resources
+TEST_DATA_DIR = os.path.join(TEST_HOME_DIR, "data")
+
 class Error(Exception):
     """Base class for regression test exceptions."""
 
@@ -735,6 +743,20 @@ def _is_ipv6_enabled():
 
 IPV6_ENABLED = _is_ipv6_enabled()
 
+# CA and signed cert
+SIGNING_CA = os.path.join(TEST_HOME_DIR, 'pycacert.pem')
+CERT_SIGNED = os.path.join(TEST_HOME_DIR, 'keycert3.pem')
+CERT_NOTBEFORE = 'May  2 09:30:14 2017 GMT'
+CERT_NOTAFTER = 'Mar 11 09:30:14 2027 GMT'
+CERT_SERIAL = '8DE2C4C4476F2B1A'
+
+# self-signed
+CERT_ONLY = os.path.join(TEST_HOME_DIR, 'ssl_cert.pem')
+CERT_KEY = os.path.join(TEST_HOME_DIR, 'ssl_key.pem')
+CERT_KEY_ENCRYPTED = os.path.join(TEST_HOME_DIR, 'ssl_key.passwd.pem')
+CERT_KEY_PASSWORD = b'somepass'
+
+
 def system_must_validate_cert(f):
     """Skip the test on TLS certificate validation failures."""
     @functools.wraps(f)
@@ -1022,14 +1044,6 @@ if hasattr(os, "umask"):
             yield
         finally:
             os.umask(oldmask)
-
-# TEST_HOME_DIR refers to the top level directory of the "test" package
-# that contains Python's regression test suite
-TEST_SUPPORT_DIR = os.path.dirname(os.path.abspath(__file__))
-TEST_HOME_DIR = os.path.dirname(TEST_SUPPORT_DIR)
-
-# TEST_DATA_DIR is used as a target download location for remote resources
-TEST_DATA_DIR = os.path.join(TEST_HOME_DIR, "data")
 
 def findfile(filename, subdir=None):
     """Try to find a file on sys.path or in the test directory.  If it is not

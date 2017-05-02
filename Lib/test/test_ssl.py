@@ -62,6 +62,7 @@ CRLFILE = data_file("revocation.crl")
 # Two keys and certs signed by the same CA (for SNI tests)
 SIGNED_CERTFILE = data_file("keycert3.pem")
 SIGNED_CERTFILE2 = data_file("keycert4.pem")
+SIGNED_CERTFILE_SAN = data_file("sanonly.pem")
 # Same certificate as pycacert.pem, but without extra text in file
 SIGNING_CA = data_file("capath", "95789e36.0")
 # cert with all kinds of subject alt names
@@ -84,11 +85,6 @@ OP_NO_COMPRESSION = getattr(ssl, "OP_NO_COMPRESSION", 0)
 OP_SINGLE_DH_USE = getattr(ssl, "OP_SINGLE_DH_USE", 0)
 OP_SINGLE_ECDH_USE = getattr(ssl, "OP_SINGLE_ECDH_USE", 0)
 OP_CIPHER_SERVER_PREFERENCE = getattr(ssl, "OP_CIPHER_SERVER_PREFERENCE", 0)
-
-# keycert.pem values
-NOTBEFORE = 'May  2 08:39:33 2017 GMT'
-NOTAFTER = 'Apr 30 08:39:33 2027 GMT'
-SERIAL = 'B1F29CD0675F8EBB'
 
 
 def handle_error(prefix):
@@ -248,19 +244,19 @@ class BasicSocketTests(unittest.TestCase):
         # note that this uses an 'unofficial' function in _ssl.c,
         # provided solely for this test, to exercise the certificate
         # parsing code
-        p = ssl._ssl._test_decode_cert(CERTFILE)
+        p = ssl._ssl._test_decode_cert(SIGNED_CERTFILE)
         if support.verbose:
             sys.stdout.write("\n" + pprint.pformat(p) + "\n")
         self.assertEqual(p['issuer'],
                          ((('countryName', 'XY'),),
                           (('localityName', 'Castle Anthrax'),),
-                          (('organizationName', 'Python Software Foundation'),),
-                          (('commonName', 'localhost'),))
+                          (('organizationName', 'Python Software Foundation CA'),),
+                          (('commonName', 'our-ca-server'),))
                         )
         # Note the next three asserts will fail if the keys are regenerated
-        self.assertEqual(p['notAfter'], asn1time(NOTAFTER))
-        self.assertEqual(p['notBefore'], asn1time(NOTBEFORE))
-        self.assertEqual(p['serialNumber'], SERIAL)
+        self.assertEqual(p['notAfter'], asn1time(support.CERT_NOTAFTER))
+        self.assertEqual(p['notBefore'], asn1time(support.CERT_NOTBEFORE))
+        self.assertEqual(p['serialNumber'], support.CERT_SERIAL)
         self.assertEqual(p['subject'],
                          ((('countryName', 'XY'),),
                           (('localityName', 'Castle Anthrax'),),
@@ -1468,7 +1464,7 @@ class SimpleBackgroundTests(unittest.TestCase):
     """Tests that connect to a simple server running in the background"""
 
     def setUp(self):
-        server = ThreadedEchoServer(SIGNED_CERTFILE)
+        server = ThreadedEchoServer(SIGNED_CERTFILE_SAN)
         self.server_addr = (HOST, server.port)
         server.__enter__()
         self.addCleanup(server.__exit__, None, None, None)
