@@ -1327,12 +1327,22 @@ class ContextTests(unittest.TestCase):
         self._assert_context_options(ctx)
 
     def test_check_hostname(self):
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
         self.assertFalse(ctx.check_hostname)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_NONE)
+
+        # check_hostname = True implies CERT_REQUIRED
+        ctx.check_hostname = True
+        self.assertTrue(ctx.check_hostname)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+
+        # check_hostname = False does not affect verify mode
+        ctx.check_hostname = False
+        self.assertFalse(ctx.check_hostname)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
 
         # Requires CERT_REQUIRED or CERT_OPTIONAL
-        with self.assertRaises(ValueError):
-            ctx.check_hostname = True
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
         ctx.verify_mode = ssl.CERT_REQUIRED
         self.assertFalse(ctx.check_hostname)
         ctx.check_hostname = True
