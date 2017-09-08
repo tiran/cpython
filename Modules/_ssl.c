@@ -214,6 +214,12 @@ static X509_VERIFY_PARAM *X509_STORE_get0_param(X509_STORE *store)
     return store->param;
 }
 
+static in X509_up_ref(X509 *x)
+{
+    CRYPTO_add(&x->references, 1, CRYPTO_LOCK_X509);
+    return 1;
+}
+
 static int
 SSL_SESSION_has_ticket(const SSL_SESSION *s)
 {
@@ -334,10 +340,17 @@ typedef struct {
     PySSLContext *ctx;
 } PySSLSession;
 
+typedef struct {
+    PyObject_HEAD
+    X509 *cert;
+    Py_hash_t hash; /* subject name hash */
+} PyX509Cert;
+
 static PyTypeObject PySSLContext_Type;
 static PyTypeObject PySSLSocket_Type;
 static PyTypeObject PySSLMemoryBIO_Type;
 static PyTypeObject PySSLSession_Type;
+static PyTypeObject PyX509Cert_Type;
 
 /*[clinic input]
 module _ssl
@@ -345,8 +358,9 @@ class _ssl._SSLContext "PySSLContext *" "&PySSLContext_Type"
 class _ssl._SSLSocket "PySSLSocket *" "&PySSLSocket_Type"
 class _ssl.MemoryBIO "PySSLMemoryBIO *" "&PySSLMemoryBIO_Type"
 class _ssl.SSLSession "PySSLSession *" "&PySSLSession_Type"
+class _ssl.X509Cert "PyX509Cert *" "&PyX509Cert_Type"
 [clinic start generated code]*/
-/*[clinic end generated code: output=da39a3ee5e6b4b0d input=bdc67fafeeaa8109]*/
+/*[clinic end generated code: output=da39a3ee5e6b4b0d input=6ae9ed01071fefbe]*/
 
 #include "clinic/_ssl.c.h"
 
@@ -592,6 +606,442 @@ _setSSLError (const char *errstr, int errcode, const char *filename, int lineno)
     ERR_clear_error();
     return NULL;
 }
+
+/*
+ * X509Cert object
+ */
+
+static PyObject * _decode_certificate(X509 *);
+static PyObject * _certificate_to_der(X509 *);
+static PyObject * _create_tuple_for_X509_NAME (X509_NAME *);
+
+#define PyX509Cert_Check(v)    (Py_TYPE(v) == &PyX509Cert_Type)
+
+#define PyX509Cert_CheckReturnTypeError(v) \
+    do if (!PyX509Cert_Check(v)) {         \
+        PyErr_Format(PyExc_TypeError,      \
+                     "The argument must be a X509cert, not '%.200s'", \
+                     Py_TYPE(v)->tp_name); \
+        return NULL;                       \
+        } while(0)
+
+#define PyX509Cert_Cert(v) \
+    (assert(PyX509Cert_Check(v)), \
+     ((PyX509Cert*)(v))->cert)
+
+static PyX509Cert*
+newPyX509Cert(X509 *cert)
+{
+    PyX509Cert *self;
+
+    if ((self = PyObject_New(PyX509Cert, &PyX509Cert_Type)) == NULL) {
+        return NULL;
+    }
+    X509_up_ref(cert);
+    self->cert = cert;
+    self->hash = -1;
+    return self;
+}
+
+static PyObject *
+pyx509cert_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    char *kwlist[] = {"cert", NULL};
+    PyX509Cert *self;
+    PyObject *certdata;
+    X509 *cert = NULL;
+    Py_buffer buf;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O:X509Cert", kwlist,
+                                     &certdata))
+        return NULL;
+
+    if (PyObject_GetBuffer(certdata, &buf, PyBUF_SIMPLE) == 0) {
+        BIO *biobuf = NULL;
+        if (!PyBuffer_IsContiguous(&buf, 'C') || buf.ndim > 1) {
+            PyBuffer_Release(&buf);
+            PyErr_SetString(PyExc_TypeError,
+                            "cert should be a contiguous buffer with "
+                            "a single dimension");
+            return NULL;
+        }
+        biobuf = BIO_new_mem_buf(buf.buf, (int)buf.len);
+        if (biobuf == NULL) {
+            PyBuffer_Release(&buf);
+            _setSSLError("Can't allocate buffer", 0, __FILE__, __LINE__);
+            return NULL;
+        }
+        cert = d2i_X509_bio(biobuf, NULL);
+        PyBuffer_Release(&buf);
+        BIO_free(biobuf);
+    } else {
+        PyObject *certdata_ascii = NULL;
+        BIO *biobuf = NULL;
+        PyErr_Clear();
+        certdata_ascii = PyUnicode_AsASCIIString(certdata);
+        if (certdata_ascii == NULL) {
+            PyErr_SetString(PyExc_TypeError,
+                            "cadata should be a ASCII string or a "
+                            "bytes-like object");
+            return NULL;
+        }
+        biobuf = BIO_new_mem_buf(PyBytes_AS_STRING(certdata_ascii),
+                                 (int)PyBytes_GET_SIZE(certdata_ascii));
+        if (biobuf == NULL) {
+             Py_DECREF(certdata_ascii);
+            _setSSLError("Can't allocate buffer", 0, __FILE__, __LINE__);
+            return NULL;
+        }
+        cert = PEM_read_bio_X509(biobuf, NULL, NULL, NULL);
+        Py_DECREF(certdata_ascii);
+        BIO_free(biobuf);
+    }
+
+    if (cert == NULL) {
+        _setSSLError(NULL, 0, __FILE__, __LINE__);
+        return NULL;
+    }
+
+    assert(type != NULL && type->tp_alloc != NULL);
+    self = (PyX509Cert *) type->tp_alloc(type, 0);
+    if (self == NULL) {
+        X509_free(cert);
+        return NULL;
+    }
+
+    self->cert = cert;
+    self->hash = -1;
+
+    return (PyObject *) self;
+}
+
+PyDoc_STRVAR(pyx509cert_get_info_doc,
+"get_info() -> dict");
+
+static PyObject*
+pyx509cert_get_info(PyX509Cert *self)
+{
+    return _decode_certificate(PyX509Cert_Cert(self));
+}
+
+PyDoc_STRVAR(pyx509cert_get_der_doc,
+"get_der() -> bytes");
+
+static PyObject*
+pyx509cert_get_der(PyX509Cert *self)
+{
+    return _certificate_to_der(PyX509Cert_Cert(self));
+}
+
+PyDoc_STRVAR(pyx509cert_get_spki_doc,
+"get_spki() -> bytes");
+
+static PyObject*
+pyx509cert_get_spki(PyX509Cert *self)
+{
+    unsigned char *buf;
+    int len;
+    PyObject *spki;
+    X509_PUBKEY *pkey;
+
+    pkey = X509_get_X509_PUBKEY(PyX509Cert_Cert(self));
+    assert(pkey != NULL);
+    len = i2d_X509_PUBKEY(pkey, NULL);
+    if (len < 0) {
+        _setSSLError(NULL, 0, __FILE__, __LINE__);
+        return NULL;
+    }
+
+    spki = PyBytes_FromStringAndSize(NULL, len);
+    if (spki == NULL)
+        return NULL;
+
+    buf = (unsigned char *)PyBytes_AS_STRING(spki);
+    i2d_X509_PUBKEY(pkey, &buf);
+    return spki;
+}
+
+PyDoc_STRVAR(pyx509cert_text_doc,
+"text() -> str");
+
+static PyObject*
+pyx509cert_text(PyX509Cert *self)
+{
+    BIO *biobuf = NULL;
+    char *buf = NULL;
+    PyObject *result = NULL;
+    /* a typical output has about 3500 to 4200 chars */
+    int bufsize = 8192;
+    int len;
+
+    /* get a memory buffer */
+    if ((biobuf = BIO_new(BIO_s_mem())) == NULL) {
+        _setSSLError(NULL, 0, __FILE__, __LINE__);
+        goto fail;
+    }
+    if (!X509_print_ex(biobuf, PyX509Cert_Cert(self), XN_FLAG_COMPAT, 0)) {
+        _setSSLError(NULL, 0, __FILE__, __LINE__);
+        goto fail;
+    }
+    if ((buf = PyMem_Malloc(bufsize)) == NULL) {
+        PyErr_NoMemory();
+        goto fail;
+    }
+    len = BIO_read(biobuf, buf, bufsize-1);
+    if (len < 0) {
+        _setSSLError(NULL, 0, __FILE__, __LINE__);
+        goto fail;
+    }
+    result = PyUnicode_FromStringAndSize(buf, len);
+
+  fail: /* fall through */
+    if (biobuf != NULL) {
+        BIO_free(biobuf);
+    }
+    if (buf != NULL) {
+        PyMem_Free(buf);
+    }
+    return result;
+}
+
+PyDoc_STRVAR(pyx509cert_check_issued_doc,
+"check_issued(subject, verbose=False) -> bool");
+
+static PyObject*
+pyx509cert_check_issued(PyX509Cert *self, PyObject *args, PyObject *kwds)
+{
+    char *kwlist[] = {"cert", "verbose", NULL};
+    PyX509Cert *subject;
+    int verbose = 0;
+    long ret;
+    const char *msg;
+    PyObject *result = NULL;
+
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|p:is_issuer_of",
+                                     kwlist, &PyX509Cert_Type, &subject,
+                                     &verbose)) {
+        return NULL;
+    }
+    ret = X509_check_issued(PyX509Cert_Cert(self),
+                            PyX509Cert_Cert(subject));
+    if (ret == X509_V_ERR_OUT_OF_MEM) {
+        msg = X509_verify_cert_error_string(ret);
+        PyErr_SetString(PyExc_MemoryError, msg);
+        return NULL;
+    }
+    result = (ret == X509_V_OK) ? Py_True : Py_False;
+    if (verbose) {
+        msg = X509_verify_cert_error_string(ret);
+        return Py_BuildValue("Os", result, msg);
+    }
+    else {
+        Py_INCREF(result);
+        return result;
+    }
+}
+
+static PyObject*
+_x509name_oneline(X509_NAME *name)
+{
+    char *p = NULL;
+    PyObject *result = NULL;
+
+    if ((p = X509_NAME_oneline(name, NULL, 0)) == NULL) {
+        _setSSLError(NULL, 0, __FILE__, __LINE__);
+        return NULL;
+    }
+    result = PyUnicode_FromString(p);
+    OPENSSL_free(p);
+    return result;
+}
+
+PyDoc_STRVAR(pyx509cert_get_issuer_name_doc,
+"get_issuer_name(oneline=False) -> str");
+
+static PyObject*
+pyx509cert_get_issuer_name(PyX509Cert *self, PyObject *args)
+{
+    int oneline = 0;
+    X509_NAME *name;
+    if (!PyArg_ParseTuple(args, "|p:get_issuer_name", &oneline)) {
+        return NULL;
+    }
+    name = X509_get_issuer_name(PyX509Cert_Cert(self));
+    if (oneline) {
+        return _x509name_oneline(name);
+    } else {
+        return _create_tuple_for_X509_NAME(name);
+    }
+}
+
+PyDoc_STRVAR(pyx509cert_get_subject_name_doc,
+"get_subject_name(oneline=False) -> str");
+
+static PyObject*
+pyx509cert_get_subject_name(PyX509Cert *self, PyObject *args)
+{
+    int oneline = 0;
+    X509_NAME *name;
+    if (!PyArg_ParseTuple(args, "|p:get_subject_name", &oneline)) {
+        return NULL;
+    }
+    name = X509_get_subject_name(PyX509Cert_Cert(self));
+    if (oneline) {
+        return _x509name_oneline(name);
+    } else {
+        return _create_tuple_for_X509_NAME(name);
+    }
+}
+
+static void
+pyx509cert_dealloc(PyX509Cert *self)
+{
+    if (self->cert) {
+        X509_free(self->cert);
+        self->cert = NULL;
+    }
+    PyObject_Del(self);
+}
+
+static Py_hash_t
+pyx509cert_hash(PyX509Cert *self)
+{
+    if (self->hash == -1) {
+        unsigned long hash;
+        hash = X509_subject_name_hash(PyX509Cert_Cert(self));
+        if (hash == (unsigned long)-1) {
+            self->hash = -2;
+        } else {
+            self->hash = (Py_hash_t)hash;
+        }
+    }
+    return self->hash;
+}
+static PyObject *
+pyx509cert_richcompare(PyObject *self, PyObject *other, int op)
+{
+    int cmp;
+
+    if (!PyX509Cert_Check(other)) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    /* only support == and != */
+    if ((op != Py_EQ) && (op != Py_NE)) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    cmp = X509_cmp(PyX509Cert_Cert(self), PyX509Cert_Cert(other));
+    if (((op == Py_EQ) && (cmp == 0)) || ((op == Py_NE) && (cmp != 0))) {
+        Py_RETURN_TRUE;
+    } else {
+        Py_RETURN_FALSE;
+    }
+}
+
+static PyObject *
+pyx509cert_repr(PyX509Cert *self)
+{
+    X509_NAME *name;
+    char *p = NULL;
+    PyObject *result;
+
+    name = X509_get_issuer_name(PyX509Cert_Cert(self));
+    if ((p = X509_NAME_oneline(name, NULL, 0)) == NULL) {
+        _setSSLError(NULL, 0, __FILE__, __LINE__);
+        return NULL;
+    }
+    result = PyUnicode_FromFormat("<_ssl.X509Cert object \"%s\">", p);
+    OPENSSL_free(p);
+    return result;
+}
+
+
+static PyGetSetDef PyX509Cert_getsetlist[] = {
+    {NULL},            /* sentinel */
+};
+
+static PyMethodDef PyX509CertMethods[] = {
+    {"get_info",  (PyCFunction)pyx509cert_get_info, METH_NOARGS,
+     pyx509cert_get_info_doc},
+    {"get_der",   (PyCFunction)pyx509cert_get_der, METH_NOARGS,
+     pyx509cert_get_der_doc},
+    {"get_spki", (PyCFunction)pyx509cert_get_spki, METH_NOARGS,
+     pyx509cert_get_spki_doc},
+    {"text", (PyCFunction)pyx509cert_text, METH_NOARGS,
+     pyx509cert_text_doc},
+    {"check_issued",  (PyCFunction)pyx509cert_check_issued,
+     METH_VARARGS | METH_KEYWORDS, pyx509cert_check_issued_doc},
+    {"get_issuer_name",  (PyCFunction)pyx509cert_get_issuer_name, METH_VARARGS,
+     pyx509cert_get_issuer_name_doc},
+    {"get_subject_name",  (PyCFunction)pyx509cert_get_subject_name, METH_VARARGS,
+     pyx509cert_get_subject_name_doc},
+    {NULL, NULL}
+};
+
+static PyTypeObject PyX509Cert_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    "_ssl.X509Cert",                    /*tp_name*/
+    sizeof(PyX509Cert),                 /*tp_basicsize*/
+    0,                                  /*tp_itemsize*/
+    /* methods */
+    (destructor)pyx509cert_dealloc,     /*tp_dealloc*/
+    0,                                  /*tp_print*/
+    0,                                  /*tp_getattr*/
+    0,                                  /*tp_setattr*/
+    0,                                  /*tp_reserved*/
+    (reprfunc)pyx509cert_repr,          /*tp_repr*/
+    0,                                  /*tp_as_number*/
+    0,                                  /*tp_as_sequence*/
+    0,                                  /*tp_as_mapping*/
+    (hashfunc)pyx509cert_hash,          /*tp_hash*/
+    0,                                  /*tp_call*/
+    0,                                  /*tp_str*/
+    0,                                  /*tp_getattro*/
+    0,                                  /*tp_setattro*/
+    0,                                  /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT,                 /*tp_flags*/
+    0,                                  /*tp_doc*/
+    0,                                  /*tp_traverse*/
+    0,                                  /*tp_clear*/
+    pyx509cert_richcompare,             /*tp_richcompare*/
+    0,                                  /*tp_weaklistoffset*/
+    0,                                  /*tp_iter*/
+    0,                                  /*tp_iternext*/
+    PyX509CertMethods,                  /*tp_methods*/
+    0,                                  /*tp_members*/
+    PyX509Cert_getsetlist,              /*tp_getset*/
+    0,                                  /*tp_base*/
+    0,                                  /*tp_dict*/
+    0,                                  /*tp_descr_get*/
+    0,                                  /*tp_descr_set*/
+    0,                                  /*tp_dictoffset*/
+    0,                                  /*tp_init*/
+    0,                                  /*tp_alloc*/
+    pyx509cert_new,                     /*tp_new*/
+};
+
+static PyObject*
+newPyX509CertTuple(STACK_OF(X509) *stack, int verified)
+{
+    int len, i;
+    PyObject *retval = NULL, *ox509 = NULL;
+
+    len = sk_X509_num(stack);
+    if ((retval = PyTuple_New(len)) == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < len; i++) {
+        X509 *cert = sk_X509_value(stack, i);
+        ox509 = (PyObject*)newPyX509Cert(cert);
+        if (ox509 == NULL) {
+            Py_CLEAR(retval);
+            break;
+        }
+        PyTuple_SET_ITEM(retval, i, ox509);
+    }
+    return retval;
+}
+
 
 /*
  * SSL objects
@@ -5145,7 +5595,8 @@ PyInit__ssl(void)
         return NULL;
     if (PyType_Ready(&PySSLSession_Type) < 0)
         return NULL;
-
+    if (PyType_Ready(&PyX509Cert_Type) < 0)
+        return NULL;
 
     m = PyModule_Create(&_sslmodule);
     if (m == NULL)
@@ -5221,6 +5672,9 @@ PyInit__ssl(void)
         return NULL;
     if (PyDict_SetItemString(d, "SSLSession",
                              (PyObject *)&PySSLSession_Type) != 0)
+        return NULL;
+    if (PyDict_SetItemString(d, "X509Cert",
+                             (PyObject *)&PyX509Cert_Type) != 0)
         return NULL;
 
     PyModule_AddIntConstant(m, "SSL_ERROR_ZERO_RETURN",
