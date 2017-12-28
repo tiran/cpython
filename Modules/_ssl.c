@@ -206,6 +206,12 @@ static int BIO_up_ref(BIO *b)
     return 1;
 }
 
+static int X509_up_ref(X509 *x)
+{
+    CRYPTO_add(&x->references, 1, CRYPTO_LOCK_X509);
+    return 1;
+}
+
 static STACK_OF(X509_OBJECT) *X509_STORE_get0_objects(X509_STORE *store) {
     return store->objs;
 }
@@ -270,6 +276,12 @@ enum py_ssl_version {
 #endif
     PY_SSL_VERSION_TLS_CLIENT=0x10,
     PY_SSL_VERSION_TLS_SERVER,
+};
+
+enum py_ssl_filetype {
+    PY_SSL_FILETYPE_PEM=X509_FILETYPE_PEM,
+    PY_SSL_FILETYPE_ASN1=X509_FILETYPE_ASN1,
+    PY_SSL_FILETYPE_PEM_AUX=X509_FILETYPE_PEM + 0x100,
 };
 
 /* serves as a flag to see whether we've initialized the SSL thread support. */
@@ -340,10 +352,66 @@ typedef struct {
     PySSLContext *ctx;
 } PySSLSession;
 
+typedef struct {
+    PyObject_HEAD
+    EVP_PKEY *pkey;
+} PySSLPrivateKey;
+
+typedef struct {
+    PyObject_HEAD
+    X509 *cert;
+    Py_hash_t hash;
+} PySSLCertificate;
+
+typedef struct {
+    PyObject_HEAD
+    X509_STORE_CTX *storectx;
+} PySSLStoreContext;
+
 static PyTypeObject PySSLContext_Type;
 static PyTypeObject PySSLSocket_Type;
 static PyTypeObject PySSLMemoryBIO_Type;
 static PyTypeObject PySSLSession_Type;
+static PyTypeObject PySSLPrivateKey_Type;
+static PyTypeObject PySSLCertificate_Type;
+static PyTypeObject PySSLStoreContext_Type;
+
+typedef struct {
+    PyThreadState *thread_state;
+    PyObject *callable;
+    char *password;
+    int size;
+    int error;
+} _PySSLPasswordInfo;
+
+#define _PWINFO_INIT(pw_info, password, err)            \
+    if ((password) && (password) != Py_None) {          \
+        if (PyCallable_Check(password)) {               \
+            (pw_info)->callable = (password);           \
+        } else if (!_pwinfo_set((pw_info), (password),  \
+                                "password should be a string or callable")) { \
+            return (err);                               \
+        }                                               \
+    }                                                   \
+
+#define _PWINFO_ERROR(pw_info)                          \
+    if ((pw_info)->error) {                             \
+        /* the password callback has already set the error information */ \
+        ERR_clear_error();                              \
+    }                                                   \
+    else if (errno != 0) {                              \
+        ERR_clear_error();                              \
+        PyErr_SetFromErrno(PyExc_OSError);              \
+    }                                                   \
+    else {                                              \
+        _setSSLError(NULL, 0, __FILE__, __LINE__);      \
+    }
+
+static int
+_pwinfo_set(_PySSLPasswordInfo *pw_info, PyObject* password,
+            const char *bad_type_error);
+static int
+_password_callback(char *buf, int size, int rwflag, void *userdata);
 
 #ifdef MS_WINDOWS
 #define _PySSL_UPDATE_ERRNO_IF(cond, sock, retcode) if (cond) { \
@@ -1538,6 +1606,11 @@ _certificate_to_der(X509 *certificate)
     return retval;
 }
 
+#include "_ssl/misc.c"
+#include "_ssl/cert.c"
+#include "_ssl/pkey.c"
+#include "_ssl/storectx.c"
+
 /*[clinic input]
 _ssl._test_decode_cert
     path: object(converter="PyUnicode_FSConverter")
@@ -1627,6 +1700,24 @@ _ssl__SSLSocket_peer_certificate_impl(PySSLSocket *self, int binary_mode)
     }
     X509_free(peer_cert);
     return result;
+}
+
+/*[clinic input]
+_ssl._SSLSocket.verified_chain
+
+[clinic start generated code]*/
+
+static PyObject *
+_ssl__SSLSocket_verified_chain_impl(PySSLSocket *self)
+/*[clinic end generated code: output=3068b09c06b0a1eb input=d49eda1fa8963989]*/
+{
+    STACK_OF(X509) *chain;
+    /* borrowed reference */
+    chain = SSL_get0_verified_chain(self->ssl);
+    if (chain == NULL) {
+        Py_RETURN_NONE;
+    }
+    return _PySSL_CertificateFromX509Stack(chain, 1);
 }
 
 static PyObject *
@@ -2621,6 +2712,7 @@ static PyMethodDef PySSLMethods[] = {
     _SSL__SSLSOCKET_COMPRESSION_METHODDEF
     _SSL__SSLSOCKET_SHUTDOWN_METHODDEF
     _SSL__SSLSOCKET_TLS_UNIQUE_CB_METHODDEF
+    _SSL__SSLSOCKET_VERIFIED_CHAIN_METHODDEF
     {NULL, NULL}
 };
 
@@ -3236,15 +3328,6 @@ set_check_hostname(PySSLContext *self, PyObject *arg, void *c)
     return 0;
 }
 
-
-typedef struct {
-    PyThreadState *thread_state;
-    PyObject *callable;
-    char *password;
-    int size;
-    int error;
-} _PySSLPasswordInfo;
-
 static int
 _pwinfo_set(_PySSLPasswordInfo *pw_info, PyObject* password,
             const char *bad_type_error)
@@ -3441,6 +3524,96 @@ error:
     Py_XDECREF(certfile_bytes);
     return NULL;
 }
+
+/*[clinic input]
+_ssl._SSLContext.load
+    certs: object(subclass_of='&PyTuple_Type')
+    key: object(subclass_of='&PySSLPrivateKey_Type')
+
+[clinic start generated code]*/
+
+static PyObject *
+_ssl__SSLContext_load_impl(PySSLContext *self, PyObject *certs,
+                           PyObject *key)
+/*[clinic end generated code: output=b6f84631dd5dc30d input=4630b7e838d4c5f0]*/
+{
+    PyObject *seq = NULL;
+    Py_ssize_t i;
+    int ret;
+
+    seq = PySequence_Fast(certs, "expected tuple of certificates");
+    if (seq == NULL)
+        return NULL;
+    if (PySequence_Fast_GET_SIZE(seq) == 0) {
+        PyErr_SetString(PyExc_ValueError, "cert list is empty");
+        goto error;
+    }
+
+    /* validate certs */
+    for (i = 0; i < PySequence_Fast_GET_SIZE(seq); i++) {
+        PyObject *ob = PySequence_Fast_GET_ITEM(seq, i);
+        if (ob == NULL) {
+            goto error;
+        }
+        if (Py_TYPE(ob) != &PySSLCertificate_Type) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "Expected certificate, got '%.200s'.",
+                Py_TYPE(ob)->tp_name
+            );
+            goto error;
+        }
+    }
+    /* add certs */
+    for (i = 0; i < PySequence_Fast_GET_SIZE(seq); i++) {
+        /* borrowed reference */
+        PySSLCertificate *cert = (PySSLCertificate *)PySequence_Fast_GET_ITEM(seq, i);
+        if (cert == NULL) {
+            goto error;
+        }
+        if (i == 0) {
+            PySSL_BEGIN_ALLOW_THREADS
+            ret = SSL_CTX_use_certificate(self->ctx, cert->cert);
+            PySSL_END_ALLOW_THREADS
+            if (ERR_peek_error() != 0) {
+                _setSSLError(NULL, 0, __FILE__, __LINE__);
+                goto error;
+            }
+            ret = SSL_CTX_clear_chain_certs(self->ctx);
+            if (ret == 0) {
+                _setSSLError(NULL, 0, __FILE__, __LINE__);
+                goto error;
+            }
+        }
+        else {
+            /* certs 1..n are chain certs */
+            PySSL_BEGIN_ALLOW_THREADS
+            ret = SSL_CTX_add1_chain_cert(self->ctx, cert->cert);
+            PySSL_END_ALLOW_THREADS
+            if (ret == 0) {
+                _setSSLError(NULL, 0, __FILE__, __LINE__);
+                goto error;
+            }
+        }
+    }
+    /* add and verify private key */
+    PySSL_BEGIN_ALLOW_THREADS
+    ret = SSL_CTX_use_PrivateKey(self->ctx, ((PySSLPrivateKey*)key)->pkey);
+    if (ret == 1) {
+        /* OK, now match key to cert */
+        ret = SSL_CTX_check_private_key(self->ctx);
+    }
+    PySSL_END_ALLOW_THREADS
+    if (ret != 1) {
+        _setSSLError(NULL, 0, __FILE__, __LINE__);
+        goto error;
+    }
+    Py_RETURN_NONE;
+  error:
+    Py_DECREF(seq);
+    return NULL;
+}
+
 
 /* internal helper function, returns -1 on error
  */
@@ -4115,6 +4288,7 @@ static struct PyMethodDef context_methods[] = {
     _SSL__SSLCONTEXT_LOAD_CERT_CHAIN_METHODDEF
     _SSL__SSLCONTEXT_LOAD_DH_PARAMS_METHODDEF
     _SSL__SSLCONTEXT_LOAD_VERIFY_LOCATIONS_METHODDEF
+    _SSL__SSLCONTEXT_LOAD_METHODDEF
     _SSL__SSLCONTEXT_SESSION_STATS_METHODDEF
     _SSL__SSLCONTEXT_SET_DEFAULT_VERIFY_PATHS_METHODDEF
     _SSL__SSLCONTEXT_SET_ECDH_CURVE_METHODDEF
@@ -5251,7 +5425,12 @@ PyInit__ssl(void)
         return NULL;
     if (PyType_Ready(&PySSLSession_Type) < 0)
         return NULL;
-
+    if (PyType_Ready(&PySSLCertificate_Type) < 0)
+        return NULL;
+    if (PyType_Ready(&PySSLPrivateKey_Type) < 0)
+        return NULL;
+    if (PyType_Ready(&PySSLStoreContext_Type) < 0)
+        return NULL;
 
     m = PyModule_Create(&_sslmodule);
     if (m == NULL)
@@ -5327,18 +5506,36 @@ PyInit__ssl(void)
         || PyDict_SetItemString(d, "SSLSyscallError", PySSLSyscallErrorObject) != 0
         || PyDict_SetItemString(d, "SSLEOFError", PySSLEOFErrorObject) != 0)
         return NULL;
+
+    Py_INCREF((PyObject *)&PySSLContext_Type);
     if (PyDict_SetItemString(d, "_SSLContext",
                              (PyObject *)&PySSLContext_Type) != 0)
         return NULL;
+    Py_INCREF((PyObject *)&PySSLSocket_Type);
     if (PyDict_SetItemString(d, "_SSLSocket",
                              (PyObject *)&PySSLSocket_Type) != 0)
         return NULL;
+    Py_INCREF((PyObject *)&PySSLMemoryBIO_Type);
     if (PyDict_SetItemString(d, "MemoryBIO",
                              (PyObject *)&PySSLMemoryBIO_Type) != 0)
         return NULL;
+    Py_INCREF((PyObject *)&PySSLSession_Type);
     if (PyDict_SetItemString(d, "SSLSession",
                              (PyObject *)&PySSLSession_Type) != 0)
         return NULL;
+    Py_INCREF((PyObject *)&PySSLCertificate_Type);
+    if (PyDict_SetItemString(d, "Certificate",
+                             (PyObject *)&PySSLCertificate_Type) != 0)
+        return NULL;
+    Py_INCREF((PyObject *)&PySSLPrivateKey_Type);
+    if (PyDict_SetItemString(d, "PrivateKey",
+                             (PyObject *)&PySSLPrivateKey_Type) != 0)
+        return NULL;
+    Py_INCREF((PyObject *)&PySSLStoreContext_Type);
+    if (PyDict_SetItemString(d, "StoreContext",
+                             (PyObject *)&PySSLStoreContext_Type) != 0)
+        return NULL;
+
 
     PyModule_AddIntConstant(m, "SSL_ERROR_ZERO_RETURN",
                             PY_SSL_ERROR_ZERO_RETURN);
