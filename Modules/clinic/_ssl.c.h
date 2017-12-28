@@ -81,6 +81,23 @@ exit:
     return return_value;
 }
 
+PyDoc_STRVAR(_ssl__SSLSocket_verified_chain__doc__,
+"verified_chain($self, /)\n"
+"--\n"
+"\n");
+
+#define _SSL__SSLSOCKET_VERIFIED_CHAIN_METHODDEF    \
+    {"verified_chain", (PyCFunction)_ssl__SSLSocket_verified_chain, METH_NOARGS, _ssl__SSLSocket_verified_chain__doc__},
+
+static PyObject *
+_ssl__SSLSocket_verified_chain_impl(PySSLSocket *self);
+
+static PyObject *
+_ssl__SSLSocket_verified_chain(PySSLSocket *self, PyObject *Py_UNUSED(ignored))
+{
+    return _ssl__SSLSocket_verified_chain_impl(self);
+}
+
 PyDoc_STRVAR(_ssl__SSLSocket_shared_ciphers__doc__,
 "shared_ciphers($self, /)\n"
 "--\n"
@@ -490,6 +507,37 @@ _ssl__SSLContext_load_cert_chain(PySSLContext *self, PyObject *const *args, Py_s
         goto exit;
     }
     return_value = _ssl__SSLContext_load_cert_chain_impl(self, certfile, keyfile, password);
+
+exit:
+    return return_value;
+}
+
+PyDoc_STRVAR(_ssl__SSLContext_load__doc__,
+"load($self, /, certs, key)\n"
+"--\n"
+"\n");
+
+#define _SSL__SSLCONTEXT_LOAD_METHODDEF    \
+    {"load", (PyCFunction)_ssl__SSLContext_load, METH_FASTCALL|METH_KEYWORDS, _ssl__SSLContext_load__doc__},
+
+static PyObject *
+_ssl__SSLContext_load_impl(PySSLContext *self, PyObject *certs,
+                           PyObject *key);
+
+static PyObject *
+_ssl__SSLContext_load(PySSLContext *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *return_value = NULL;
+    static const char * const _keywords[] = {"certs", "key", NULL};
+    static _PyArg_Parser _parser = {"O!O!:load", _keywords, 0};
+    PyObject *certs;
+    PyObject *key;
+
+    if (!_PyArg_ParseStackAndKeywords(args, nargs, kwnames, &_parser,
+        &PyTuple_Type, &certs, &PySSLPrivateKey_Type, &key)) {
+        goto exit;
+    }
+    return_value = _ssl__SSLContext_load_impl(self, certs, key);
 
 exit:
     return return_value;
@@ -1168,4 +1216,4 @@ exit:
 #ifndef _SSL_ENUM_CRLS_METHODDEF
     #define _SSL_ENUM_CRLS_METHODDEF
 #endif /* !defined(_SSL_ENUM_CRLS_METHODDEF) */
-/*[clinic end generated code: output=3d42305ed0ad162a input=a9049054013a1b77]*/
+/*[clinic end generated code: output=19207566a7885483 input=a9049054013a1b77]*/
