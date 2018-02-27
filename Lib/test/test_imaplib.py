@@ -501,14 +501,6 @@ class NewIMAPSSLTests(NewIMAPTestsMixin, unittest.TestCase):
                                  ssl_context=ssl_context)
         client.shutdown()
 
-    # Mock the private method _connect(), so mark the test as specific
-    # to CPython stdlib
-    @cpython_only
-    def test_certfile_arg_warn(self):
-        with support.check_warnings(('', DeprecationWarning)):
-            with mock.patch.object(self.imap_class, 'open'):
-                with mock.patch.object(self.imap_class, '_connect'):
-                    self.imap_class('localhost', 143, certfile=CERTFILE)
 
 class ThreadedNetworkedTests(unittest.TestCase):
     server_class = socketserver.TCPServer
@@ -978,18 +970,6 @@ class RemoteIMAP_SSLTest(RemoteIMAPTest):
             _server = self.imap_class(self.host, self.port)
             rs = _server.logout()
             self.assertEqual(rs[0], 'BYE')
-
-    def test_ssl_context_certfile_exclusive(self):
-        with transient_internet(self.host):
-            self.assertRaises(
-                ValueError, self.imap_class, self.host, self.port,
-                certfile=CERTFILE, ssl_context=self.create_ssl_context())
-
-    def test_ssl_context_keyfile_exclusive(self):
-        with transient_internet(self.host):
-            self.assertRaises(
-                ValueError, self.imap_class, self.host, self.port,
-                keyfile=CERTFILE, ssl_context=self.create_ssl_context())
 
 
 if __name__ == "__main__":

@@ -40,7 +40,7 @@ The :mod:`poplib` module provides two classes:
    be used).
 
 
-.. class:: POP3_SSL(host, port=POP3_SSL_PORT, keyfile=None, certfile=None, timeout=None, context=None)
+.. class:: POP3_SSL(host, port=POP3_SSL_PORT, timeout=None, context=None)
 
    This is a subclass of :class:`POP3` that connects to the server over an SSL
    encrypted socket.  If *port* is not specified, 995, the standard POP3-over-SSL
@@ -49,10 +49,6 @@ The :mod:`poplib` module provides two classes:
    bundling SSL configuration options, certificates and private keys into a
    single (potentially long-lived) structure.  Please read :ref:`ssl-security`
    for best practices.
-
-   *keyfile* and *certfile* are a legacy alternative to *context* - they can
-   point to PEM-formatted private key and certificate chain files,
-   respectively, for the SSL connection.
 
    .. versionchanged:: 3.2
       *context* parameter added.
@@ -68,6 +64,11 @@ The :mod:`poplib` module provides two classes:
        Please use :meth:`ssl.SSLContext.load_cert_chain` instead, or let
        :func:`ssl.create_default_context` select the system's trusted CA
        certificates for you.
+
+    .. versionchanged:: 3.8
+
+       The module now verifies certificates and hostnames by default. The
+       *keyfile* and *certfile* arguments have been removed.
 
 One exception is defined as an attribute of the :mod:`poplib` module:
 

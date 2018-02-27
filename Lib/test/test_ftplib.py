@@ -914,13 +914,6 @@ class TestTLS_FTPClass(TestCase):
         ctx.options |= ssl.OP_NO_TLSv1_3
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        self.assertRaises(ValueError, ftplib.FTP_TLS, keyfile=CERTFILE,
-                          context=ctx)
-        self.assertRaises(ValueError, ftplib.FTP_TLS, certfile=CERTFILE,
-                          context=ctx)
-        self.assertRaises(ValueError, ftplib.FTP_TLS, certfile=CERTFILE,
-                          keyfile=CERTFILE, context=ctx)
-
         self.client = ftplib.FTP_TLS(context=ctx, timeout=TIMEOUT)
         self.client.connect(self.server.host, self.server.port)
         self.assertNotIsInstance(self.client.sock, ssl.SSLSocket)

@@ -719,27 +719,11 @@ else:
         '221 Goodbye.'
         >>>
         '''
-        ssl_version = ssl.PROTOCOL_TLS_CLIENT
 
-        def __init__(self, host='', user='', passwd='', acct='', keyfile=None,
-                     certfile=None, context=None,
+        def __init__(self, host='', user='', passwd='', acct='', context=None,
                      timeout=_GLOBAL_DEFAULT_TIMEOUT, source_address=None):
-            if context is not None and keyfile is not None:
-                raise ValueError("context and keyfile arguments are mutually "
-                                 "exclusive")
-            if context is not None and certfile is not None:
-                raise ValueError("context and certfile arguments are mutually "
-                                 "exclusive")
-            if keyfile is not None or certfile is not None:
-                import warnings
-                warnings.warn("keyfile and certfile are deprecated, use a"
-                              "custom context instead", DeprecationWarning, 2)
-            self.keyfile = keyfile
-            self.certfile = certfile
             if context is None:
-                context = ssl._create_stdlib_context(self.ssl_version,
-                                                     certfile=certfile,
-                                                     keyfile=keyfile)
+                context = ssl._create_stdlib_context()
             self.context = context
             self._prot_p = False
             FTP.__init__(self, host, user, passwd, acct, timeout, source_address)
@@ -753,7 +737,7 @@ else:
             '''Set up secure control connection by using TLS/SSL.'''
             if isinstance(self.sock, ssl.SSLSocket):
                 raise ValueError("Already using TLS")
-            if self.ssl_version >= ssl.PROTOCOL_TLS:
+            if self.context.protocol >= ssl.PROTOCOL_TLS:
                 resp = self.voidcmd('AUTH TLS')
             else:
                 resp = self.voidcmd('AUTH SSL')

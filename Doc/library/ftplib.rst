@@ -72,7 +72,7 @@ The module defines the following items:
       *source_address* parameter was added.
 
 
-.. class:: FTP_TLS(host='', user='', passwd='', acct='', keyfile=None, certfile=None, context=None, timeout=None, source_address=None)
+.. class:: FTP_TLS(host='', user='', passwd='', acct='', context=None, timeout=None, source_address=None)
 
    A :class:`FTP` subclass which adds TLS support to FTP as described in
    :rfc:`4217`.
@@ -82,10 +82,6 @@ The module defines the following items:
    is a :class:`ssl.SSLContext` object which allows bundling SSL configuration
    options, certificates and private keys into a single (potentially
    long-lived) structure.  Please read :ref:`ssl-security` for best practices.
-
-   *keyfile* and *certfile* are a legacy alternative to *context* -- they
-   can point to PEM-formatted private key and certificate chain files
-   (respectively) for the SSL connection.
 
    .. versionadded:: 3.2
 
@@ -103,6 +99,11 @@ The module defines the following items:
        Please use :meth:`ssl.SSLContext.load_cert_chain` instead, or let
        :func:`ssl.create_default_context` select the system's trusted CA
        certificates for you.
+
+    .. versionchanged:: 3.8
+
+       The module now verifies certificates and hostnames by default. The
+       *keyfile* and *certfile* arguments have been removed.
 
    Here's a sample session using the :class:`FTP_TLS` class::
 

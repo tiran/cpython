@@ -562,12 +562,11 @@ def create_default_context(purpose=Purpose.SERVER_AUTH, *, cafile=None,
     # SSLContext sets OP_NO_SSLv2, OP_NO_SSLv3, OP_NO_COMPRESSION,
     # OP_CIPHER_SERVER_PREFERENCE, OP_SINGLE_DH_USE and OP_SINGLE_ECDH_USE
     # by default.
-    context = SSLContext(PROTOCOL_TLS)
-
     if purpose == Purpose.SERVER_AUTH:
         # verify certs and host name in client mode
-        context.verify_mode = CERT_REQUIRED
-        context.check_hostname = True
+        context = SSLContext(PROTOCOL_TLS_CLIENT)
+    else:
+        context = SSLContext(PROTOCOL_TLS_SERVER)
 
     if cafile or capath or cadata:
         context.load_verify_locations(cafile, capath, cadata)
@@ -578,7 +577,7 @@ def create_default_context(purpose=Purpose.SERVER_AUTH, *, cafile=None,
         context.load_default_certs(purpose)
     return context
 
-def _create_unverified_context(protocol=PROTOCOL_TLS, *, cert_reqs=CERT_NONE,
+def _create_unverified_context(protocol=None, *, cert_reqs=CERT_NONE,
                            check_hostname=False, purpose=Purpose.SERVER_AUTH,
                            certfile=None, keyfile=None,
                            cafile=None, capath=None, cadata=None):
@@ -591,6 +590,12 @@ def _create_unverified_context(protocol=PROTOCOL_TLS, *, cert_reqs=CERT_NONE,
     """
     if not isinstance(purpose, _ASN1Object):
         raise TypeError(purpose)
+
+    if protocol is None:
+        if purpose is Purpose.SERVER_AUTH:
+            protocol = PROTOCOL_TLS_CLIENT
+        else:
+            protocol = PROTOCOL_TLS_SERVER
 
     # SSLContext sets OP_NO_SSLv2, OP_NO_SSLv3, OP_NO_COMPRESSION,
     # OP_CIPHER_SERVER_PREFERENCE, OP_SINGLE_DH_USE and OP_SINGLE_ECDH_USE
@@ -625,6 +630,8 @@ _create_default_https_context = create_default_context
 
 
 # Backwards compatibility alias, even though it's not a public name.
+# Since Python 3.7, all stdlib modules use verified context
+# _create_stdlib_context = create_default_context
 _create_stdlib_context = _create_unverified_context
 
 
@@ -1276,7 +1283,8 @@ def PEM_cert_to_DER_cert(pem_cert_string):
     d = pem_cert_string.strip()[len(PEM_HEADER):-len(PEM_FOOTER)]
     return base64.decodebytes(d.encode('ASCII', 'strict'))
 
-def get_server_certificate(addr, ssl_version=PROTOCOL_TLS, ca_certs=None):
+def get_server_certificate(addr, ssl_version=PROTOCOL_TLS_CLIENT,
+                           ca_certs=None):
     """Retrieve the certificate from the server at the specified address,
     and return it as a PEM-encoded string.
     If 'ca_certs' is specified, validate the server cert against it.
@@ -1285,13 +1293,16 @@ def get_server_certificate(addr, ssl_version=PROTOCOL_TLS, ca_certs=None):
     host, port = addr
     if ca_certs is not None:
         cert_reqs = CERT_REQUIRED
+        check_hostname = True
     else:
         cert_reqs = CERT_NONE
-    context = _create_stdlib_context(ssl_version,
-                                     cert_reqs=cert_reqs,
-                                     cafile=ca_certs)
+        check_hostname = False
+    context = _create_unverified_context(
+        ssl_version, cert_reqs=cert_reqs, check_hostname=check_hostname,
+        cafile=ca_certs
+    )
     with  create_connection(addr) as sock:
-        with context.wrap_socket(sock) as sslsock:
+        with context.wrap_socket(sock, server_hostname=host) as sslsock:
             dercert = sslsock.getpeercert(True)
     return DER_cert_to_PEM_cert(dercert)
 

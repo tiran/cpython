@@ -65,9 +65,8 @@ Protocol) and :rfc:`1869` (SMTP Service Extensions).
       The SMTPUTF8 extension (:rfc:`6531`) is now supported.
 
 
-.. class:: SMTP_SSL(host='', port=0, local_hostname=None, keyfile=None, \
-                    certfile=None [, timeout], context=None, \
-                    source_address=None)
+.. class:: SMTP_SSL(host='', port=0, local_hostname=None, [, timeout], \
+                    context=None, source_address=None)
 
    An :class:`SMTP_SSL` instance behaves exactly the same as instances of
    :class:`SMTP`. :class:`SMTP_SSL` should be used for situations where SSL is
@@ -79,10 +78,6 @@ Protocol) and :rfc:`1869` (SMTP Service Extensions).
    can contain a :class:`~ssl.SSLContext` and allows configuring various
    aspects of the secure connection.  Please read :ref:`ssl-security` for
    best practices.
-
-   *keyfile* and *certfile* are a legacy alternative to *context*, and can
-   point to a PEM formatted private key and certificate chain file for the
-   SSL connection.
 
    .. versionchanged:: 3.3
       *context* was added.
@@ -102,6 +97,10 @@ Protocol) and :rfc:`1869` (SMTP Service Extensions).
        :func:`ssl.create_default_context` select the system's trusted CA
        certificates for you.
 
+    .. versionchanged:: 3.8
+
+       The module now verifies certificates and hostnames by default. The
+       *keyfile* and *certfile* arguments have been removed.
 
 .. class:: LMTP(host='', port=LMTP_PORT, local_hostname=None, source_address=None)
 
@@ -373,14 +372,11 @@ An :class:`SMTP` instance has the following methods:
    .. versionadded:: 3.5
 
 
-.. method:: SMTP.starttls(keyfile=None, certfile=None, context=None)
+.. method:: SMTP.starttls(context=None)
 
    Put the SMTP connection in TLS (Transport Layer Security) mode.  All SMTP
    commands that follow will be encrypted.  You should then call :meth:`ehlo`
    again.
-
-   If *keyfile* and *certfile* are provided, these are passed to the :mod:`socket`
-   module's :func:`ssl` function.
 
    Optional *context* parameter is a :class:`ssl.SSLContext` object; This is
    an alternative to using a keyfile and a certfile and if specified both
@@ -411,6 +407,10 @@ An :class:`SMTP` instance has the following methods:
       :exc:`SMTPNotSupportedError` subclass instead of the base
       :exc:`SMTPException`.
 
+    .. versionchanged:: 3.8
+
+       The module now verifies certificates and hostnames by default. The
+       *keyfile* and *certfile* arguments have been removed.
 
 .. method:: SMTP.sendmail(from_addr, to_addrs, msg, mail_options=[], rcpt_options=[])
 

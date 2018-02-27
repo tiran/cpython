@@ -1495,7 +1495,8 @@ class ContextTests(unittest.TestCase):
     def test_create_default_context(self):
         ctx = ssl.create_default_context()
 
-        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS)
+        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS_CLIENT)
+
         self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
         self.assertTrue(ctx.check_hostname)
         self._assert_context_options(ctx)
@@ -1504,37 +1505,41 @@ class ContextTests(unittest.TestCase):
             cadata = f.read()
         ctx = ssl.create_default_context(cafile=SIGNING_CA, capath=CAPATH,
                                          cadata=cadata)
-        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS)
+        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS_CLIENT)
         self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
         self._assert_context_options(ctx)
 
         ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS)
+        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS_SERVER)
         self.assertEqual(ctx.verify_mode, ssl.CERT_NONE)
         self._assert_context_options(ctx)
 
     def test__create_stdlib_context(self):
-        ctx = ssl._create_stdlib_context()
-        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS)
+        self.assertIs(ssl._create_stdlib_context, ssl.create_default_context)
+
+    def test__create_unverified_context(self):
+        ctx = ssl._create_unverified_context()
+        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS_CLIENT)
         self.assertEqual(ctx.verify_mode, ssl.CERT_NONE)
         self.assertFalse(ctx.check_hostname)
         self._assert_context_options(ctx)
 
-        ctx = ssl._create_stdlib_context(ssl.PROTOCOL_TLSv1)
+        ctx = ssl._create_unverified_context(ssl.PROTOCOL_TLSv1)
         self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLSv1)
         self.assertEqual(ctx.verify_mode, ssl.CERT_NONE)
         self._assert_context_options(ctx)
 
-        ctx = ssl._create_stdlib_context(ssl.PROTOCOL_TLSv1,
-                                         cert_reqs=ssl.CERT_REQUIRED,
-                                         check_hostname=True)
+        ctx = ssl._create_unverified_context(
+            ssl.PROTOCOL_TLSv1, cert_reqs=ssl.CERT_REQUIRED,
+            check_hostname=True
+        )
         self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLSv1)
         self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
         self.assertTrue(ctx.check_hostname)
         self._assert_context_options(ctx)
 
-        ctx = ssl._create_stdlib_context(purpose=ssl.Purpose.CLIENT_AUTH)
-        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS)
+        ctx = ssl._create_unverified_context(purpose=ssl.Purpose.CLIENT_AUTH)
+        self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS_SERVER)
         self.assertEqual(ctx.verify_mode, ssl.CERT_NONE)
         self._assert_context_options(ctx)
 
