@@ -328,7 +328,7 @@ class SAX2DOM(PullDOM):
 
 default_bufsize = (2 ** 14) - 20
 
-def parse(stream_or_string, parser=None, bufsize=None):
+def parse(stream_or_string, parser=None, bufsize=None, *, options=None):
     if bufsize is None:
         bufsize = default_bufsize
     if isinstance(stream_or_string, str):

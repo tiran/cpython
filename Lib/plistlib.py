@@ -63,6 +63,7 @@ import re
 import struct
 from warnings import warn
 from xml.parsers.expat import ParserCreate
+from xml.policy import apply_policy
 
 
 PlistFormat = enum.Enum('PlistFormat', 'FMT_XML FMT_BINARY', module=__name__)
@@ -252,11 +253,13 @@ class _PlistParser:
         self._use_builtin_types = use_builtin_types
         self._dict_type = dict_type
 
-    def parse(self, fileobj):
+    def parse(self, fileobj, *, policy=None):
         self.parser = ParserCreate()
         self.parser.StartElementHandler = self.handle_begin_element
         self.parser.EndElementHandler = self.handle_end_element
         self.parser.CharacterDataHandler = self.handle_data
+        # apply XML parser policy
+        apply_policy(self.parser, policy)
         self.parser.ParseFile(fileobj)
         return self.root
 

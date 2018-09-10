@@ -100,6 +100,7 @@ import collections.abc
 import contextlib
 
 from . import ElementPath
+from ..policy import apply_policy
 
 
 class ParseError(SyntaxError):
@@ -570,7 +571,7 @@ class ElementTree:
         # assert iselement(element)
         self._root = element
 
-    def parse(self, source, parser=None):
+    def parse(self, source, parser=None, *, policy=None):
         """Load external XML document into element tree.
 
         *source* is a file name or file object, *parser* is an optional parser
@@ -1182,7 +1183,7 @@ def dump(elem):
 # parsing
 
 
-def parse(source, parser=None):
+def parse(source, parser=None, *, policy=None):
     """Parse XML document into element tree.
 
     *source* is a filename or file object containing XML data,
@@ -1196,7 +1197,7 @@ def parse(source, parser=None):
     return tree
 
 
-def iterparse(source, events=None, parser=None):
+def iterparse(source, events=None, parser=None, policy=None):
     """Incrementally parse XML document into ElementTree.
 
     This class also reports what's going on to the user based on the
@@ -1246,13 +1247,15 @@ def iterparse(source, events=None, parser=None):
 
 class XMLPullParser:
 
-    def __init__(self, events=None, *, _parser=None):
+    def __init__(self, events=None, *, _parser=None, policy=None):
         # The _parser argument is for internal use only and must not be relied
         # upon in user code. It will be removed in a future release.
         # See http://bugs.python.org/issue17741 for more details.
 
         self._events_queue = collections.deque()
-        self._parser = _parser or XMLParser(target=TreeBuilder())
+        if _parser is None:
+            _parser = XMLParser(target=TreeBuilder(), policy=policy)
+        self._parser = _parser
         # wire up the parser for event reporting
         if events is None:
             events = ("end",)
@@ -1297,7 +1300,7 @@ class XMLPullParser:
                 yield event
 
 
-def XML(text, parser=None):
+def XML(text, parser=None, *, policy=None):
     """Parse XML document from string constant.
 
     This function can be used to embed "XML Literals" in Python code.
@@ -1309,12 +1312,12 @@ def XML(text, parser=None):
 
     """
     if not parser:
-        parser = XMLParser(target=TreeBuilder())
+        parser = XMLParser(target=TreeBuilder(), policy=policy)
     parser.feed(text)
     return parser.close()
 
 
-def XMLID(text, parser=None):
+def XMLID(text, parser=None, *, policy=None):
     """Parse XML document from string constant for its IDs.
 
     *text* is a string containing XML data, *parser* is an
@@ -1325,7 +1328,7 @@ def XMLID(text, parser=None):
 
     """
     if not parser:
-        parser = XMLParser(target=TreeBuilder())
+        parser = XMLParser(target=TreeBuilder(), policy=policy)
     parser.feed(text)
     tree = parser.close()
     ids = {}
@@ -1338,7 +1341,7 @@ def XMLID(text, parser=None):
 # Parse XML document from string constant.  Alias for XML().
 fromstring = XML
 
-def fromstringlist(sequence, parser=None):
+def fromstringlist(sequence, parser=None, *, policy=None):
     """Parse XML document from sequence of string fragments.
 
     *sequence* is a list of other sequence, *parser* is an optional parser
@@ -1348,7 +1351,7 @@ def fromstringlist(sequence, parser=None):
 
     """
     if not parser:
-        parser = XMLParser(target=TreeBuilder())
+        parser = XMLParser(target=TreeBuilder(), policy=policy)
     for text in sequence:
         parser.feed(text)
     return parser.close()
@@ -1441,7 +1444,7 @@ class XMLParser:
 
     """
 
-    def __init__(self, *, target=None, encoding=None):
+    def __init__(self, *, target=None, encoding=None, policy=None):
         try:
             from xml.parsers import expat
         except ImportError:
@@ -1476,6 +1479,8 @@ class XMLParser:
         parser.buffer_text = 1
         parser.ordered_attributes = 1
         parser.specified_attributes = 1
+        # apply XML parser policy
+        apply_policy(parser, policy)
         self._doctype = None
         self.entity = {}
         try:

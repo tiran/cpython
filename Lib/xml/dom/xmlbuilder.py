@@ -41,6 +41,8 @@ class Options:
     errorHandler = None
     filter = None
 
+    policy = None
+
 
 class DOMBuilder:
     entityResolver = None

@@ -1952,21 +1952,21 @@ def _do_pulldom_parse(func, args, kwargs):
     events.clear()
     return rootNode
 
-def parse(file, parser=None, bufsize=None):
+def parse(file, parser=None, bufsize=None, *, options=None):
     """Parse a file into a DOM by filename or file object."""
     if parser is None and not bufsize:
         from xml.dom import expatbuilder
-        return expatbuilder.parse(file)
+        return expatbuilder.parse(file, options=options)
     else:
         from xml.dom import pulldom
         return _do_pulldom_parse(pulldom.parse, (file,),
             {'parser': parser, 'bufsize': bufsize})
 
-def parseString(string, parser=None):
+def parseString(string, parser=None, *, options=None):
     """Parse a file into a DOM from a string."""
     if parser is None:
         from xml.dom import expatbuilder
-        return expatbuilder.parseString(string)
+        return expatbuilder.parseString(string, options=options)
     else:
         from xml.dom import pulldom
         return _do_pulldom_parse(pulldom.parseString, (string,),

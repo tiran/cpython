@@ -136,6 +136,7 @@ from decimal import Decimal
 import http.client
 import urllib.parse
 from xml.parsers import expat
+from xml.policy import apply_policy
 import errno
 from io import BytesIO
 try:
@@ -426,8 +427,10 @@ WRAPPERS = (DateTime, Binary)
 
 class ExpatParser:
     # fast expat parser for Python 2.0 and later.
-    def __init__(self, target):
+    def __init__(self, target, *, policy=None):
         self._parser = parser = expat.ParserCreate(None, None)
+        # apply XML parser policy
+        apply_policy(self._parser, policy)
         self._target = target
         parser.StartElementHandler = target.start
         parser.EndElementHandler = target.end
@@ -892,7 +895,7 @@ FastMarshaller = FastParser = FastUnmarshaller = None
 #
 # return A (parser, unmarshaller) tuple.
 
-def getparser(use_datetime=False, use_builtin_types=False):
+def getparser(use_datetime=False, use_builtin_types=False, *, policy=None):
     """getparser() -> parser, unmarshaller
 
     Create an instance of the fastest available parser, and attach it
@@ -915,7 +918,7 @@ def getparser(use_datetime=False, use_builtin_types=False):
         if FastParser:
             parser = FastParser(target)
         else:
-            parser = ExpatParser(target)
+            parser = ExpatParser(target, policy=policy)
     return parser, target
 
 ##
@@ -1006,7 +1009,7 @@ def dumps(params, methodname=None, methodresponse=None, encoding=None,
 #     (None if not present).
 # @see Fault
 
-def loads(data, use_datetime=False, use_builtin_types=False):
+def loads(data, use_datetime=False, use_builtin_types=False, *, policy=None):
     """data -> unmarshalled data, method name
 
     Convert an XML-RPC packet to unmarshalled data plus a method
@@ -1015,7 +1018,11 @@ def loads(data, use_datetime=False, use_builtin_types=False):
     If the XML-RPC packet represents a fault condition, this function
     raises a Fault exception.
     """
-    p, u = getparser(use_datetime=use_datetime, use_builtin_types=use_builtin_types)
+    p, u = getparser(
+        use_datetime=use_datetime,
+        use_builtin_types=use_builtin_types,
+        policy=policy
+    )
     p.feed(data)
     p.close()
     return u.close(), u.getmethodname()
@@ -1131,9 +1138,11 @@ class Transport:
     # that they can decode such a request
     encode_threshold = None #None = don't encode
 
-    def __init__(self, use_datetime=False, use_builtin_types=False):
+    def __init__(self, use_datetime=False, use_builtin_types=False, *,
+                 policy=None):
         self._use_datetime = use_datetime
         self._use_builtin_types = use_builtin_types
+        self._policy = policy
         self._connection = (None, None)
         self._extra_headers = []
 
@@ -1196,7 +1205,8 @@ class Transport:
     def getparser(self):
         # get parser and unmarshaller
         return getparser(use_datetime=self._use_datetime,
-                         use_builtin_types=self._use_builtin_types)
+                         use_builtin_types=self._use_builtin_types,
+                         policy=self._policy)
 
     ##
     # Get authorization info from host parameter

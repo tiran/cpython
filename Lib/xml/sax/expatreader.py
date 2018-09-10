@@ -11,6 +11,7 @@ from xml.sax.handler import feature_namespace_prefixes
 from xml.sax.handler import feature_external_ges, feature_external_pes
 from xml.sax.handler import feature_string_interning
 from xml.sax.handler import property_xml_string, property_interning_dict
+from ..policy import apply_policy
 
 # xml.parsers.expat does not raise ImportError in Jython
 import sys
@@ -87,10 +88,11 @@ class ExpatLocator(xmlreader.Locator):
 class ExpatParser(xmlreader.IncrementalParser, xmlreader.Locator):
     """SAX driver for the pyexpat C module."""
 
-    def __init__(self, namespaceHandling=0, bufsize=2**16-20):
+    def __init__(self, namespaceHandling=0, bufsize=2**16-20, *, policy=None):
         xmlreader.IncrementalParser.__init__(self, bufsize)
         self._source = xmlreader.InputSource()
         self._parser = None
+        self._policy = None
         self._namespaces = namespaceHandling
         self._lex_handler_prop = None
         self._parsing = 0
@@ -307,6 +309,9 @@ class ExpatParser(xmlreader.IncrementalParser, xmlreader.Locator):
         self._parser.SetParamEntityParsing(
             expat.XML_PARAM_ENTITY_PARSING_UNLESS_STANDALONE)
 
+        # apply XML parser policy
+        apply_policy(self._parser, self._policy)
+
         self._parsing = 0
         self._entity_stack = []
 
@@ -414,6 +419,8 @@ class ExpatParser(xmlreader.IncrementalParser, xmlreader.Locator):
 
         self._entity_stack.append((self._parser, self._source))
         self._parser = self._parser.ExternalEntityParserCreate(context)
+        # apply XML parser policy
+        apply_policy(self._parser, self._policy, external_entity_parser=True)
         self._source = source
 
         try:

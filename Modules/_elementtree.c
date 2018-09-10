@@ -2767,6 +2767,8 @@ typedef struct {
 
     PyObject *handle_close;
 
+    int forbid_entities;
+
 } XMLParserObject;
 
 /* helpers */
@@ -3213,6 +3215,25 @@ expat_pi_handler(XMLParserObject* self, const XML_Char* target_in,
     }
 }
 
+static void
+expat_entitydecl_handler(XMLParserObject* self, const XML_Char *entityName,
+                         int is_parameter_entity, const XML_Char *value,
+                         int value_length, const XML_Char *base,
+                         const XML_Char *systemId, const XML_Char *publicId,
+                         const XML_Char *notationName)
+{
+    elementtreestate *st = ET_STATE_GLOBAL;
+    if (PyErr_Occurred())
+        return;
+    expat_set_error(
+        XML_ERROR_ABORTED,
+        EXPAT(GetErrorLineNumber)(self->parser),
+        EXPAT(GetErrorColumnNumber)(self->parser),
+        "Entites are forbidden"
+    );
+    EXPAT(StopParser)(self->parser, 0);
+}
+
 /* -------------------------------------------------------------------- */
 
 static PyObject *
@@ -3272,6 +3293,10 @@ _elementtree_XMLParser___init___impl(XMLParserObject *self, PyObject *target,
         PyErr_NoMemory();
         return -1;
     }
+#if PYEXPAT_COMBINED_VERSION >= 20100
+    EXPAT(SetHashSalt)(self->parser, (unsigned long)_Py_HashSecret.expat.hashsalt);
+#endif
+
 
     if (target) {
         Py_INCREF(target);
@@ -3340,6 +3365,7 @@ _elementtree_XMLParser___init___impl(XMLParserObject *self, PyObject *target,
             self->parser,
             (XML_ProcessingInstructionHandler) expat_pi_handler
             );
+    self->forbid_entities = 0;
     EXPAT(SetStartDoctypeDeclHandler)(
         self->parser,
         (XML_StartDoctypeDeclHandler) expat_start_doctype_handler
@@ -3869,6 +3895,42 @@ static PyMethodDef xmlparser_methods[] = {
     {NULL, NULL}
 };
 
+static PyObject*
+xmlparser_forbid_entites_getter(XMLParserObject *self, void *closure)
+{
+    return PyBool_FromLong(self->forbid_entities);
+}
+
+static int
+xmlparser_forbid_entites_setter(XMLParserObject *self, PyObject *value, void *closure)
+{
+    int forbid = PyObject_IsTrue(value);
+    if (forbid < 0)
+        return -1;
+    self->forbid_entities = forbid;
+
+    if (forbid) {
+        EXPAT(SetEntityDeclHandler)(
+            self->parser,
+            (XML_EntityDeclHandler) expat_entitydecl_handler
+        );
+    } else {
+        EXPAT(SetEntityDeclHandler)(
+            self->parser,
+            NULL
+        );
+    }
+    return 0;
+}
+
+static PyGetSetDef xmlparser_getsetlist[] = {
+    {"forbid_entites",
+        (getter)xmlparser_forbid_entites_getter,
+        (setter)xmlparser_forbid_entites_setter,
+        "Forbid entities"},
+};
+
+
 static PyTypeObject XMLParser_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "xml.etree.ElementTree.XMLParser", sizeof(XMLParserObject), 0,
@@ -3899,7 +3961,7 @@ static PyTypeObject XMLParser_Type = {
     0,                                              /* tp_iternext */
     xmlparser_methods,                              /* tp_methods */
     0,                                              /* tp_members */
-    0,                                              /* tp_getset */
+    xmlparser_getsetlist,                           /* tp_getset */
     0,                                              /* tp_base */
     0,                                              /* tp_dict */
     0,                                              /* tp_descr_get */

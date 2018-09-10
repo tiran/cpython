@@ -32,6 +32,7 @@ from xml.dom import EMPTY_NAMESPACE, EMPTY_PREFIX, XMLNS_NAMESPACE
 from xml.parsers import expat
 from xml.dom.minidom import _append_child, _set_attribute_node
 from xml.dom.NodeFilter import NodeFilter
+from ..policy import apply_policy
 
 TEXT_NODE = Node.TEXT_NODE
 CDATA_SECTION_NODE = Node.CDATA_SECTION_NODE
@@ -193,6 +194,8 @@ class ExpatBuilder:
         parser.XmlDeclHandler = self.xml_decl_handler
         parser.ElementDeclHandler = self.element_decl_handler
         parser.AttlistDeclHandler = self.attlist_decl_handler
+        # apply XML parser policsy
+        apply_policy(parser, self._options.policy)
 
     def parseFile(self, file):
         """Parse a document from a file object, returning the document
@@ -692,6 +695,8 @@ class FragmentBuilder(ExpatBuilder):
             old_document = self.document
             old_cur_node = self.curNode
             parser = self._parser.ExternalEntityParserCreate(context)
+            apply_policy(parser, self._options.policy,
+                         external_entity_parser=True)
             # put the real document back, parse into the fragment to return
             self.document = self.originalDocument
             self.fragment = self.document.createDocumentFragment()
@@ -896,15 +901,15 @@ class InternalSubsetExtractor(ExpatBuilder):
         raise ParseEscape()
 
 
-def parse(file, namespaces=True):
+def parse(file, namespaces=True, *, options=None):
     """Parse a document, returning the resulting Document node.
 
     'file' may be either a file name or an open file object.
     """
     if namespaces:
-        builder = ExpatBuilderNS()
+        builder = ExpatBuilderNS(options=options)
     else:
-        builder = ExpatBuilder()
+        builder = ExpatBuilder(options=options)
 
     if isinstance(file, str):
         with open(file, 'rb') as fp:
@@ -914,18 +919,18 @@ def parse(file, namespaces=True):
     return result
 
 
-def parseString(string, namespaces=True):
+def parseString(string, namespaces=True, *, options=None):
     """Parse a document from a string, returning the resulting
     Document node.
     """
     if namespaces:
-        builder = ExpatBuilderNS()
+        builder = ExpatBuilderNS(options=options)
     else:
-        builder = ExpatBuilder()
+        builder = ExpatBuilder(options=options)
     return builder.parseString(string)
 
 
-def parseFragment(file, context, namespaces=True):
+def parseFragment(file, context, namespaces=True, *, options=None):
     """Parse a fragment of a document, given the context from which it
     was originally extracted.  context should be the parent of the
     node(s) which are in the fragment.
@@ -933,9 +938,9 @@ def parseFragment(file, context, namespaces=True):
     'file' may be either a file name or an open file object.
     """
     if namespaces:
-        builder = FragmentBuilderNS(context)
+        builder = FragmentBuilderNS(context, options=options)
     else:
-        builder = FragmentBuilder(context)
+        builder = FragmentBuilder(context, options=options)
 
     if isinstance(file, str):
         with open(file, 'rb') as fp:
@@ -945,15 +950,15 @@ def parseFragment(file, context, namespaces=True):
     return result
 
 
-def parseFragmentString(string, context, namespaces=True):
+def parseFragmentString(string, context, namespaces=True, options=None):
     """Parse a fragment of a document from a string, given the context
     from which it was originally extracted.  context should be the
     parent of the node(s) which are in the fragment.
     """
     if namespaces:
-        builder = FragmentBuilderNS(context)
+        builder = FragmentBuilderNS(context, options=options)
     else:
-        builder = FragmentBuilder(context)
+        builder = FragmentBuilder(context, options=options)
     return builder.parseString(string)
 
 

@@ -454,6 +454,8 @@ class ElementTreeTest(unittest.TestCase):
     def test_parsefile(self):
         # Test parsing from file.
 
+        import pdb;
+        pdb.set_trace()
         tree = ET.parse(SIMPLE_XMLFILE)
         stream = io.StringIO()
         tree.write(stream, encoding='unicode')

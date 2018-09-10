@@ -2,20 +2,31 @@
 # standard library.
 
 import sys
-import test.support
+import subprocess
 
-test.support.verbose = 0
 
-def runtest(name):
-    __import__(name)
-    module = sys.modules[name]
-    if hasattr(module, "test_main"):
-        module.test_main()
+TESTS = [
+    'test_minidom', 'test_pyexpat', 'test_sax', 'test_xml_dom_minicompat',
+    'test_xml_etree', 'test_xml_etree_c', 'test_xmlrpc',
+]
 
-runtest("test.test_minidom")
-runtest("test.test_pyexpat")
-runtest("test.test_sax")
-runtest("test.test_xml_dom_minicompat")
-runtest("test.test_xml_etree")
-runtest("test.test_xml_etree_c")
-runtest("test.test_xmlrpc")
+
+def run_regrtests(*extra_args):
+    args = [
+        sys.executable,
+        '-Werror', '-bb',  # turn warnings into exceptions
+        '-m', 'test',
+    ]
+    if not extra_args:
+        args.extend([
+            '-r', '-w', '-u', 'network', '-j', '0'
+        ])
+    else:
+        args.extend(extra_args)
+    args.extend(TESTS)
+    result = subprocess.call(args)
+    sys.exit(result)
+
+
+if __name__ == '__main__':
+    run_regrtests(*sys.argv[1:])
