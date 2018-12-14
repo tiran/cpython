@@ -75,6 +75,14 @@ static PySocketModule_APIObject PySocketModule;
 #  endif
 #endif
 
+#if !defined(OPENSSL_NO_OCSP) && !defined(OPENSSL_NO_TLSEXT)
+#define PY_OCSP 1
+#include "openssl/ocsp.h"
+/* future offset for thisupd and past offset for nextupd */
+#define PY_OCSP_MAX_OFFSET (5 * 60)
+#define PY_OCSP_MAX_AGE (7 * 24 * 60 * 60)
+#endif
+
 /* SSL error object */
 static PyObject *PySSLErrorObject;
 static PyObject *PySSLCertVerificationErrorObject;
@@ -377,6 +385,21 @@ enum py_proto_version {
 #endif
 };
 
+#ifdef PY_OCSP
+enum py_ssl_ocsp {
+    /* Don't request TLSEXT status OCSP */
+    PY_SSL_OCSP_NONE=0,
+    /* verify OCSP staple if server sends one, but don't fail if server
+     * omits the extension. */
+    PY_SSL_OCSP_STAPLE_IF_AVAILABLE,
+    /* Use "SMI Security for PKIX Certificate Extension" to determinate
+     * OCSP must-staple, 1.3.6.1.5.5.7.1.24 with SEQ INTEGER 5. */
+    PY_SSL_OCSP_MUST_STAPLE_IF_CERT_EXT,
+    /* server must send a valud OCSP staple response */
+    PY_SSL_OCSP_MUST_STAPLE
+};
+#endif
+
 
 /* serves as a flag to see whether we've initialized the SSL thread support. */
 /* 0 means no, greater than 0 means yes */
@@ -423,6 +446,10 @@ typedef struct {
     int protocol;
 #ifdef TLS1_3_VERSION
     int post_handshake_auth;
+#endif
+#ifdef PY_OCSP
+    int ocsp_check;
+    int ocsp_verify_flags;
 #endif
 } PySSLContext;
 
@@ -936,6 +963,11 @@ newPySSLSocket(PySSLContext *sslctx, PySocketSockObject *sock,
             return NULL;
         }
     }
+#ifdef PY_OCSP
+    if (sslctx->ocsp_check > PY_SSL_OCSP_NONE) {
+        SSL_set_tlsext_status_type(self->ssl, TLSEXT_STATUSTYPE_ocsp);
+    }
+#endif
     /* If the socket is in non-blocking mode or timeout mode, set the BIO
      * to non-blocking mode (blocking is the default)
      */
@@ -2933,6 +2965,114 @@ _set_verify_mode(PySSLContext *self, enum py_ssl_cert_requirements n)
     return 0;
 }
 
+#ifdef PY_OCSP
+
+#define DEBUG(msg) fprintf(stderr, "%s\n", msg)
+
+static int
+ocsp_verify_cb(SSL *s, void *args) {
+    PySSLSocket *ssl;
+    PySSLContext *ssl_ctx = (PySSLContext *)args;
+
+    const unsigned char *raw;
+    long len, i;
+    OCSP_RESPONSE *resp = NULL;
+    int status;
+    OCSP_BASICRESP *basciresp = NULL;
+    X509_STORE *store = NULL;
+    STACK_OF(X509) *chain = NULL;
+
+#ifdef WITH_THREAD
+    PyGILState_STATE gstate = PyGILState_Ensure();
+#endif
+
+    ssl = SSL_get_app_data(s);
+    assert(PySSLSocket_Check(ssl));
+    assert(PyObject_IsInstance((PyObject *)ssl_ctx, (PyObject *)&PySSLContext_Type));
+
+    len = SSL_get_tlsext_status_ocsp_resp(s, &raw);
+    if (!raw) {
+        DEBUG("SSL_get_tlsext_status_ocsp_resp() failed.");
+        goto fail;
+    }
+
+    resp = d2i_OCSP_RESPONSE(NULL, &raw, len);
+    if (!resp) {
+        DEBUG("resp decode failed");
+        goto fail;
+    }
+
+    status = OCSP_response_status(resp);
+    if (status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+        DEBUG("response status != successful");
+        goto fail;
+    }
+
+    basciresp = OCSP_response_get1_basic(resp);
+    if (!basciresp) {
+        DEBUG("basic response failed");
+        goto fail;
+    }
+
+    store = SSL_CTX_get_cert_store(ssl_ctx->ctx);
+    chain = SSL_get_peer_cert_chain(s);
+
+    if (OCSP_basic_verify(basciresp, chain, store, ssl_ctx->ocsp_verify_flags) <= 0) {
+        DEBUG("OCSP_basic_verify() failed.");
+        goto fail;
+    }
+
+    for (i = 0; i < OCSP_resp_count(basciresp); i++) {
+        int status, reason = 0;
+        OCSP_SINGLERESP *singleresp = NULL;
+        ASN1_GENERALIZEDTIME *revoctime = NULL, *thisupd, *nextupd;
+
+        singleresp = OCSP_resp_get0(basciresp, i);
+        if (singleresp == NULL) {
+            continue;
+        }
+
+        status = OCSP_single_get0_status(singleresp, &reason, &revoctime,
+                                         &thisupd, &nextupd);
+
+        if (!OCSP_check_validity(thisupd, nextupd,
+                                 PY_OCSP_MAX_OFFSET,
+                                 PY_OCSP_MAX_AGE)) {
+            DEBUG("OCSP_check_validity() failed.");
+            goto fail;
+        }
+
+        switch(status) {
+            case V_OCSP_CERTSTATUS_GOOD:
+                DEBUG("OCSP_CERTSTATUS_GOOD");
+                goto end;
+            case V_OCSP_CERTSTATUS_REVOKED:
+                DEBUG("OCSP_CERTSTATUS_REVOKED");
+                goto fail;
+            case V_OCSP_CERTSTATUS_UNKNOWN:
+            default:
+                DEBUG("OCSP_CERTSTATUS_UNKNOWN");
+                goto fail;
+        }
+    }
+
+  fail:
+  end:
+    if (basciresp != NULL) {
+        OCSP_BASICRESP_free(basciresp);
+    }
+    if (resp != NULL) {
+        OCSP_RESPONSE_free(resp);
+    }
+#ifdef WITH_THREAD
+        PyGILState_Release(gstate);
+#endif
+    /* 1: ok, 0: error, -1: internal error */
+    return 1;
+}
+
+#endif
+
 /*[clinic input]
 @classmethod
 _ssl._SSLContext.__new__
@@ -3022,6 +3162,12 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
             return NULL;
         }
     }
+#ifdef PY_OCSP
+    self->ocsp_check = PY_SSL_OCSP_MUST_STAPLE;
+    self->ocsp_verify_flags = 0;
+    SSL_CTX_set_tlsext_status_cb(self->ctx, ocsp_verify_cb);
+    SSL_CTX_set_tlsext_status_arg(self->ctx, self);
+#endif
     /* Defaults */
     options = SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS;
     if (proto_version != PY_SSL_VERSION_SSL2)
