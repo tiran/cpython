@@ -2,6 +2,63 @@
 preserve
 [clinic start generated code]*/
 
+PyDoc_STRVAR(unicodedata_uts46_remap__doc__,
+"uts46_remap($module, code_point, std3_rules=True, transitional=False, /)\n"
+"--\n"
+"\n"
+"UTS 46 mapping");
+
+#define UNICODEDATA_UTS46_REMAP_METHODDEF    \
+    {"uts46_remap", (PyCFunction)(void(*)(void))unicodedata_uts46_remap, METH_FASTCALL, unicodedata_uts46_remap__doc__},
+
+static PyObject *
+unicodedata_uts46_remap_impl(PyObject *module, int code_point,
+                             int std3_rules, int transitional);
+
+static PyObject *
+unicodedata_uts46_remap(PyObject *module, PyObject *const *args, Py_ssize_t nargs)
+{
+    PyObject *return_value = NULL;
+    int code_point;
+    int std3_rules = 1;
+    int transitional = 0;
+
+    if (!_PyArg_CheckPositional("uts46_remap", nargs, 1, 3)) {
+        goto exit;
+    }
+    if (!PyUnicode_Check(args[0])) {
+        _PyArg_BadArgument("uts46_remap", 1, "a unicode character", args[0]);
+        goto exit;
+    }
+    if (PyUnicode_READY(args[0])) {
+        goto exit;
+    }
+    if (PyUnicode_GET_LENGTH(args[0]) != 1) {
+        _PyArg_BadArgument("uts46_remap", 1, "a unicode character", args[0]);
+        goto exit;
+    }
+    code_point = PyUnicode_READ_CHAR(args[0], 0);
+    if (nargs < 2) {
+        goto skip_optional;
+    }
+    std3_rules = PyObject_IsTrue(args[1]);
+    if (std3_rules < 0) {
+        goto exit;
+    }
+    if (nargs < 3) {
+        goto skip_optional;
+    }
+    transitional = PyObject_IsTrue(args[2]);
+    if (transitional < 0) {
+        goto exit;
+    }
+skip_optional:
+    return_value = unicodedata_uts46_remap_impl(module, code_point, std3_rules, transitional);
+
+exit:
+    return return_value;
+}
+
 PyDoc_STRVAR(unicodedata_UCD_decimal__doc__,
 "decimal($self, chr, default=None, /)\n"
 "--\n"
@@ -559,4 +616,4 @@ unicodedata_UCD_lookup(PyObject *self, PyObject *arg)
 exit:
     return return_value;
 }
-/*[clinic end generated code: output=0fc850fe5b6b312c input=a9049054013a1b77]*/
+/*[clinic end generated code: output=37fb5429b09c5bbd input=a9049054013a1b77]*/

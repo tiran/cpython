@@ -699,7 +699,7 @@ class PyBuildExt(build_ext):
         exts.append( Extension('_lsprof', ['_lsprof.c', 'rotatingtree.c']) )
         # static Unicode character database
         exts.append( Extension('unicodedata', ['unicodedata.c'],
-                               depends=['unicodedata_db.h', 'unicodename_db.h']) )
+                               depends=['unicodedata_db.h', 'unicodename_db.h', 'unicode_uts46_db.h']) )
         # _opcode module
         exts.append( Extension('_opcode', ['_opcode.c']) )
         # asyncio speedups

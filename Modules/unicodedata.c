@@ -106,6 +106,69 @@ new_previous_version(const char*name, const change_record* (*getrecord)(Py_UCS4)
         return (PyObject*)self;
 }
 
+/* ------------- UTS 46 ------------------------------------- */
+
+#include "unicode_uts46_db.h"
+
+/*[clinic input]
+unicodedata.uts46_remap
+
+    code_point: int(accept={str})
+    std3_rules: bool = True
+    transitional: bool = False
+    /
+
+UTS 46 mapping
+[clinic start generated code]*/
+
+static PyObject *
+unicodedata_uts46_remap_impl(PyObject *module, int code_point,
+                             int std3_rules, int transitional)
+/*[clinic end generated code: output=57fcd9ff406c5d73 input=6ea254e17b7e918e]*/
+{
+    uts46_map_t uts46 = {-1};
+    if (code_point < 0)
+        goto error;
+
+    if (code_point < 256) {
+        uts46 = uts46_map[code_point];
+    } else {
+        /* bisect search */
+        int lo = 0;
+        int hi = UTS46_MAP_LENGTH;
+        int mid;
+        while (lo < hi) {
+            mid = (lo + hi) / 2;
+            uts46 = uts46_map[mid];
+            if (uts46.cp < code_point) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        if (uts46.cp != code_point) {
+            goto error;
+        }
+    }
+
+    if ((uts46.status == 'V') ||
+            ((uts46.status == 'D') && !transitional) ||
+            ((uts46.status == '3' && !std3_rules && !uts46.mapping))) {
+        return PyUnicode_FromOrdinal(code_point);
+    }
+    if (uts46.mapping && (
+            (uts46.status == 'M') ||
+            ((uts46.status == '3') && !std3_rules) ||
+            ((uts46.status == 'D') && transitional))) {
+        return PyUnicode_FromString(uts46.mapping);
+    }
+    if (uts46.status == 'I') {
+        return PyUnicode_FromString("");
+    }
+  error:
+    PyErr_Format(PyExc_IndexError, "Invalid code point %i", code_point);
+    return NULL;
+}
 
 /* --- Module API --------------------------------------------------------- */
 
@@ -1353,6 +1416,7 @@ static PyMethodDef unicodedata_functions[] = {
     UNICODEDATA_UCD_LOOKUP_METHODDEF
     UNICODEDATA_UCD_IS_NORMALIZED_METHODDEF
     UNICODEDATA_UCD_NORMALIZE_METHODDEF
+    UNICODEDATA_UTS46_REMAP_METHODDEF
     {NULL, NULL}                /* sentinel */
 };
 
