@@ -364,6 +364,19 @@ extern char        *ctermid_r(char *);
 #define HAVE_STRUCT_STAT_ST_FSTYPE 1
 #endif
 
+/* memfd_create is either defined in sys/mman.h or sys/memfd.h
+ * linux/memfd.h defines additional flags
+ */
+#ifdef HAVE_SYS_MMAN_H
+#include <sys/mman.h>
+#endif
+#ifdef HAVE_SYS_MEMFD_H
+#include <sys/memfd.h>
+#endif
+#ifdef HAVE_LINUX_MEMFD_H
+#include <linux/memfd.h>
+#endif
+
 #ifdef _Py_MEMORY_SANITIZER
 # include <sanitizer/msan_interface.h>
 #endif
@@ -13277,6 +13290,32 @@ os__remove_dll_directory_impl(PyObject *module, PyObject *cookie)
 
 #endif
 
+#ifdef HAVE_MEMFD_CREATE
+/*[clinic input]
+os.memfd_create
+
+    name: FSConverter
+    flags: unsigned_long(bitwise=True, c_default='MFD_CLOEXEC')
+
+create an anonymous file.
+[clinic start generated code]*/
+
+static PyObject *
+os_memfd_create_impl(PyObject *module, PyObject *name, unsigned long flags)
+/*[clinic end generated code: output=8b93891ddfd5ed67 input=1aef36afa7e34a9d]*/
+{
+    int result;
+    const char *bytes = PyBytes_AsString(name);
+    Py_BEGIN_ALLOW_THREADS
+    result = memfd_create(bytes, flags);
+    Py_END_ALLOW_THREADS
+    if (result == -1)
+        return PyErr_SetFromErrno(PyExc_OSError);
+    return PyLong_FromLong(result);
+}
+#endif
+
+
 static PyMethodDef posix_methods[] = {
 
     OS_STAT_METHODDEF
@@ -13467,6 +13506,9 @@ static PyMethodDef posix_methods[] = {
 #ifdef MS_WINDOWS
     OS__ADD_DLL_DIRECTORY_METHODDEF
     OS__REMOVE_DLL_DIRECTORY_METHODDEF
+#endif
+#ifdef HAVE_MEMFD_CREATE
+    OS_MEMFD_CREATE_METHODDEF
 #endif
     {NULL,              NULL}            /* Sentinel */
 };
@@ -13912,6 +13954,32 @@ all_ins(PyObject *m)
     if (PyModule_AddIntMacro(m, GRND_NONBLOCK)) return -1;
 #endif
 
+#ifdef MFD_CLOEXEC
+    if (PyModule_AddIntMacro(m, MFD_CLOEXEC)) return -1;
+#endif
+#ifdef MFD_CLOEXEC
+    if (PyModule_AddIntMacro(m, MFD_ALLOW_SEALING)) return -1;
+#endif
+#if 0
+#ifdef MFD_HUGETLB
+    if (PyModule_AddIntMacro(m, MFD_HUGETLB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_SHIFT)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_MASK)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_64KB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_512KB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_1MB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_2MB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_8MB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_16MB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_32MB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_256MB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_512MB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_1GB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_2GB)) return -1;
+    if (PyModule_AddIntMacro(m, MFD_HUGE_16GB)) return -1;
+#endif
+#endif
+
 #if defined(__APPLE__)
     if (PyModule_AddIntConstant(m, "_COPYFILE_DATA", COPYFILE_DATA)) return -1;
 #endif
@@ -14065,6 +14133,10 @@ static const char * const have_functions[] = {
 
 #ifdef MS_WINDOWS
     "MS_WINDOWS",
+#endif
+
+#ifdef HAVE_MEMFD_CREATE
+    "HAVE_MEMFD_CREATE",
 #endif
 
     NULL

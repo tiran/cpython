@@ -8049,6 +8049,53 @@ exit:
 
 #endif /* defined(MS_WINDOWS) */
 
+#if defined(HAVE_MEMFD_CREATE)
+
+PyDoc_STRVAR(os_memfd_create__doc__,
+"memfd_create($module, /, name, flags)\n"
+"--\n"
+"\n"
+"create an anonymous file.");
+
+#define OS_MEMFD_CREATE_METHODDEF    \
+    {"memfd_create", (PyCFunction)(void(*)(void))os_memfd_create, METH_FASTCALL|METH_KEYWORDS, os_memfd_create__doc__},
+
+static PyObject *
+os_memfd_create_impl(PyObject *module, PyObject *name, unsigned long flags);
+
+static PyObject *
+os_memfd_create(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *return_value = NULL;
+    static const char * const _keywords[] = {"name", "flags", NULL};
+    static _PyArg_Parser _parser = {NULL, _keywords, "memfd_create", 0};
+    PyObject *argsbuf[2];
+    PyObject *name = NULL;
+    unsigned long flags = MFD_CLOEXEC;
+
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser, 2, 2, 0, argsbuf);
+    if (!args) {
+        goto exit;
+    }
+    if (!PyUnicode_FSConverter(args[0], &name)) {
+        goto exit;
+    }
+    if (!PyLong_Check(args[1])) {
+        _PyArg_BadArgument("memfd_create", 2, "int", args[1]);
+        goto exit;
+    }
+    flags = PyLong_AsUnsignedLongMask(args[1]);
+    return_value = os_memfd_create_impl(module, name, flags);
+
+exit:
+    /* Cleanup for name */
+    Py_XDECREF(name);
+
+    return return_value;
+}
+
+#endif /* defined(HAVE_MEMFD_CREATE) */
+
 #ifndef OS_TTYNAME_METHODDEF
     #define OS_TTYNAME_METHODDEF
 #endif /* !defined(OS_TTYNAME_METHODDEF) */
@@ -8576,4 +8623,8 @@ exit:
 #ifndef OS__REMOVE_DLL_DIRECTORY_METHODDEF
     #define OS__REMOVE_DLL_DIRECTORY_METHODDEF
 #endif /* !defined(OS__REMOVE_DLL_DIRECTORY_METHODDEF) */
-/*[clinic end generated code: output=ab36ec0376a422ae input=a9049054013a1b77]*/
+
+#ifndef OS_MEMFD_CREATE_METHODDEF
+    #define OS_MEMFD_CREATE_METHODDEF
+#endif /* !defined(OS_MEMFD_CREATE_METHODDEF) */
+/*[clinic end generated code: output=2e586a3e0e72c7ee input=a9049054013a1b77]*/
