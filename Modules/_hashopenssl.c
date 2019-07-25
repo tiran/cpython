@@ -1109,6 +1109,12 @@ PyInit__hashlib(void)
     Py_INCREF((PyObject *)&EVPtype);
     PyModule_AddObject(m, "HASH", (PyObject *)&EVPtype);
 
+    if (getenv("OPENSSL_FIPS")) {
+        if (!FIPS_mode_set(1)) {
+            return _setException(PyExc_ValueError);
+        }
+    }
+
     /* these constants are used by the convenience constructors */
 #define _HASH(py_name, openssl_name) INIT_CONSTRUCTOR_CONSTANTS(py_name)
 #include "_hashopenssl_list.h"
