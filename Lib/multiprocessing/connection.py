@@ -42,6 +42,10 @@ BUFSIZE = 8192
 # A very generous timeout when it comes to local connections...
 CONNECTION_TIMEOUT = 20.
 
+# The hmac module implicitly defaults to using MD5.
+# Support using a stronger algorithm for the challenge/response code:
+HMAC_DIGEST_NAME='sha256'
+
 _mmap_counter = itertools.count()
 
 default_family = 'AF_INET'
@@ -718,7 +722,7 @@ def deliver_challenge(connection, authkey):
     assert isinstance(authkey, bytes)
     message = os.urandom(MESSAGE_LENGTH)
     connection.send_bytes(CHALLENGE + message)
-    digest = hmac.new(authkey, message, 'md5').digest()
+    digest = hmac.new(authkey, message, HMAC_DIGEST_NAME).digest()
     response = connection.recv_bytes(256)        # reject large message
     if response == digest:
         connection.send_bytes(WELCOME)
@@ -732,7 +736,7 @@ def answer_challenge(connection, authkey):
     message = connection.recv_bytes(256)         # reject large message
     assert message[:len(CHALLENGE)] == CHALLENGE, 'message = %r' % message
     message = message[len(CHALLENGE):]
-    digest = hmac.new(authkey, message, 'md5').digest()
+    digest = hmac.new(authkey, message, HMAC_DIGEST_NAME).digest()
     connection.send_bytes(digest)
     response = connection.recv_bytes(256)        # reject large message
     if response != WELCOME:
