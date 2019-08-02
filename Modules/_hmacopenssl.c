@@ -373,6 +373,34 @@ static struct PyMethodDef hmacopenssl_functions[] = {
     {NULL,      NULL}            /* Sentinel */
 };
 
+static int
+hmacopenssl_traverse(PyObject *self, visitproc visit, void *arg)
+{
+    hmacopenssl_state *state;
+
+    state = PyModule_GetState(self);
+
+    if (state) {
+        Py_VISIT(state->HmacType);
+    }
+
+    return 0;
+}
+
+static int
+hmacopenssl_clear(PyObject *self)
+{
+    hmacopenssl_state *state;
+
+    state = PyModule_GetState(self);
+
+    if (state) {
+        Py_CLEAR(state->HmacType);
+    }
+
+    return 0;
+}
+
 
 
 /* Initialize this module. */
@@ -396,7 +424,10 @@ hmacopenssl_exec(PyObject *m) {
     }
 
     state = PyModule_GetState(m);
+
     state->HmacType = (PyTypeObject *)temp;
+    Py_INCREF(temp);
+
 
     return 0;
 
@@ -415,7 +446,9 @@ static struct PyModuleDef _hmacopenssl_def = {
     .m_name = "_hmacopenssl",
     .m_methods = hmacopenssl_functions,
     .m_slots = hmacopenssl_slots,
-    .m_size = sizeof(hmacopenssl_state)
+    .m_size = sizeof(hmacopenssl_state),
+    .m_traverse = hmacopenssl_traverse,
+    .m_clear = hmacopenssl_clear
 };
 
 
