@@ -431,7 +431,7 @@ EVPnew(PyObject *name_obj,
     EVPobject *self;
 
     if (!digest && !initial_ctx) {
-        PyErr_SetString(PyExc_ValueError, "unsupported hash type");
+        PyErr_Format(PyExc_ValueError, "unsupported hash type %U", name_obj);
         return NULL;
     }
 
@@ -622,7 +622,7 @@ pbkdf2_hmac(PyObject *self, PyObject *args, PyObject *kwdict)
 
     digest = EVP_get_digestbyname(name);
     if (digest == NULL) {
-        PyErr_SetString(PyExc_ValueError, "unsupported hash type");
+        PyErr_Format(PyExc_ValueError, "unsupported hash type %s", name);
         goto end;
     }
 
