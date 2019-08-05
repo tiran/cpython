@@ -317,6 +317,7 @@ class BasicAuthTests(unittest.TestCase):
         self.assertRaises(urllib.error.HTTPError, urllib.request.urlopen, self.server_url)
 
 
+@unittest.skipIf(hashlib.get_fips_mode(), "md5 digest auth unacceptable in FIPS mode")
 @unittest.skipUnless(threading, "Threading required for this test.")
 class ProxyAuthTests(unittest.TestCase):
     URL = "http://localhost"
