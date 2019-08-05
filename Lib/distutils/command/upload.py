@@ -102,7 +102,6 @@ class upload(PyPIRCCommand):
             'content': (os.path.basename(filename),content),
             'filetype': command,
             'pyversion': pyversion,
-            'md5_digest': hashlib.md5(content).hexdigest(),
 
             # additional meta-data
             'metadata_version': '1.0',
@@ -121,6 +120,16 @@ class upload(PyPIRCCommand):
             'requires': meta.get_requires(),
             'obsoletes': meta.get_obsoletes(),
             }
+        try:
+            digest = hashlib.md5(content).hexdigest()
+        except ValueError as e:
+            msg = 'calculating md5 checksum failed: %s' % e
+            self.announce(msg, log.ERROR)
+            if not hashlib.get_fips_mode():
+                # this really shouldn't fail
+                raise
+        else:
+            data['md5_digest'] = digest
         comment = ''
         if command == 'bdist_rpm':
             dist, version, id = platform.dist()

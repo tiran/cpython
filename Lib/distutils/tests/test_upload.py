@@ -3,6 +3,7 @@ import os
 import unittest
 import unittest.mock as mock
 from urllib.request import HTTPError
+import hashlib
 
 from test.support import run_unittest
 
@@ -130,7 +131,11 @@ class uploadTestCase(BasePyPIRCCommandTestCase):
 
         # what did we send ?
         headers = dict(self.last_open.req.headers)
-        self.assertEqual(headers['Content-length'], '2162')
+        if hashlib.get_fips_mode():
+            # md5 hash is omitted
+            self.assertEqual(headers['Content-length'], '2020')
+        else:
+            self.assertEqual(headers['Content-length'], '2162')
         content_type = headers['Content-type']
         self.assertTrue(content_type.startswith('multipart/form-data'))
         self.assertEqual(self.last_open.req.get_method(), 'POST')
@@ -166,7 +171,11 @@ class uploadTestCase(BasePyPIRCCommandTestCase):
         cmd.run()
 
         headers = dict(self.last_open.req.headers)
-        self.assertEqual(headers['Content-length'], '2172')
+        if hashlib.get_fips_mode():
+            # md5 hash is omitted
+            self.assertEqual(headers['Content-length'], '2030')
+        else:
+            self.assertEqual(headers['Content-length'], '2172')
         self.assertIn(b'long description\r', self.last_open.req.data)
 
     def test_upload_fails(self):
