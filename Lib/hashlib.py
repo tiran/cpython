@@ -155,7 +155,18 @@ def __hash_new(name, data=b'', **kwargs):
     """new(name, data=b'') - Return a new hashing object using the named algorithm;
     optionally initialized with data (which must be a bytes-like object).
     """
-    if not get_fips_mode():
+    if get_fips_mode():
+        # Use OpenSSL names for Python built-in hashes
+        orig_name = name
+        name = {
+            'sha3_224': "sha3-224",
+            'sha3_256': "sha3-256",
+            'sha3_384': "sha3-384",
+            'sha3_512': "sha3-512",
+            'shake_128': "shake128",
+            'shake_256': "shake256",
+        }.get(name, name)
+    else:
         if name in {'blake2b', 'blake2s'}:
             # Prefer our blake2 implementation.
             # OpenSSL 1.1.0 comes with a limited implementation of blake2b/s.
@@ -163,7 +174,10 @@ def __hash_new(name, data=b'', **kwargs):
             # salt, personal, tree hashing or SSE.
             return __get_builtin_constructor(name)(data, **kwargs)
     try:
-        return _hashlib.new(name, data)
+        retval = _hashlib.new(name, data)
+        if get_fips_mode() and name != orig_name:
+            retval._set_name(orig_name)
+        return retval
     except ValueError:
         # If the _hashlib module (OpenSSL) doesn't support the named
         # hash, try using our builtin implementations.

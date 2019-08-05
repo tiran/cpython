@@ -256,11 +256,25 @@ EVP_update(EVPobject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
+static PyObject *
+EVP_set_name(EVPobject *self, PyObject *new_name)
+{
+    if (!PyUnicode_CheckExact(new_name)) {
+        PyErr_SetString(PyExc_TypeError, "expected string");
+        return NULL;
+    }
+    Py_DECREF(self->name);
+    Py_INCREF(new_name);
+    self->name = new_name;
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef EVP_methods[] = {
     {"update",    (PyCFunction)EVP_update,    METH_VARARGS, EVP_update__doc__},
     {"digest",    (PyCFunction)EVP_digest,    METH_NOARGS,  EVP_digest__doc__},
     {"hexdigest", (PyCFunction)EVP_hexdigest, METH_NOARGS,  EVP_hexdigest__doc__},
     {"copy",      (PyCFunction)EVP_copy,      METH_NOARGS,  EVP_copy__doc__},
+    {"_set_name", (PyCFunction)EVP_set_name,  METH_O,       EVP_copy__doc__},
     {NULL, NULL}  /* sentinel */
 };
 

@@ -29,6 +29,11 @@ COMPILED_WITH_PYDEBUG = hasattr(sys, 'gettotalrefcount')
 c_hashlib = import_fresh_module('hashlib', fresh=['_hashlib'])
 py_hashlib = import_fresh_module('hashlib', blocked=['_hashlib'])
 
+if hashlib.get_fips_mode():
+    FIPS_DISABLED = {'md5', 'MD5', 'blake2b', 'blake2s'}
+else:
+    FIPS_DISABLED = set()
+
 try:
     import _blake2
 except ImportError:
@@ -84,6 +89,11 @@ class HashLibTestCase(unittest.TestCase):
     # Issue #14693: fallback modules are always compiled under POSIX
     _warn_on_extension_import = os.name == 'posix' or COMPILED_WITH_PYDEBUG
 
+    if hashlib.get_fips_mode():
+        shakes = set()
+        supported_hash_names = tuple(
+            n for n in supported_hash_names if n not in FIPS_DISABLED)
+
     def _conditional_import_module(self, module_name):
         """Import a module and return a reference to it or None on failure."""
         try:
@@ -91,7 +101,19 @@ class HashLibTestCase(unittest.TestCase):
         except ModuleNotFoundError as error:
             if self._warn_on_extension_import:
                 warnings.warn('Did a C extension fail to compile? %s' % error)
+        except ImportError as error:
+            if not hashlib.get_fips_mode():
+                raise
         return None
+
+    def _has_shake_extras(self, hasher):
+        """Return true if the hasher should have "shake" API (digest length)"""
+        if hasher.name not in self.shakes:
+            return False
+        _hashlib = self._conditional_import_module('_hashlib')
+        if _hashlib and isinstance(hasher, _hashlib.HASH):
+            return False
+        return True
 
     def __init__(self, *args, **kwargs):
         algorithms = set()
@@ -179,15 +201,13 @@ class HashLibTestCase(unittest.TestCase):
         a = array.array("b", range(10))
         for cons in self.hash_constructors:
             c = cons(a)
-            if (c.name in self.shakes
-                and not cons.__name__.startswith('openssl_')
-            ):
+            if self._has_shake_extras(c):
                 c.hexdigest(16)
             else:
                 c.hexdigest()
 
     def test_algorithms_guaranteed(self):
-        self.assertEqual(hashlib.algorithms_guaranteed,
+        self.assertEqual(hashlib.algorithms_guaranteed - FIPS_DISABLED,
             set(_algo for _algo in self.supported_hash_names
                   if _algo.islower()))
 
@@ -199,6 +219,12 @@ class HashLibTestCase(unittest.TestCase):
         self.assertRaises(ValueError, hashlib.new, 'spam spam spam spam spam')
         self.assertRaises(TypeError, hashlib.new, 1)
 
+    @unittest.skipUnless(hashlib.get_fips_mode(), "Builtin constructor only unavailable in FIPS mode")
+    def test_get_builtin_constructor_fips(self):
+        with self.assertRaises(AttributeError):
+            hashlib.__get_builtin_constructor
+
+    @unittest.skipIf(hashlib.get_fips_mode(), "No builtin constructors in FIPS mode")
     def test_get_builtin_constructor(self):
         get_builtin_constructor = getattr(hashlib,
                                           '__get_builtin_constructor')
@@ -228,9 +254,7 @@ class HashLibTestCase(unittest.TestCase):
     def test_hexdigest(self):
         for cons in self.hash_constructors:
             h = cons()
-            if (h.name in self.shakes
-                and not cons.__name__.startswith('openssl_')
-            ):
+            if self._has_shake_extras(h):
                 self.assertIsInstance(h.digest(16), bytes)
                 self.assertEqual(hexstr(h.digest(16)), h.hexdigest(16))
             else:
@@ -242,9 +266,7 @@ class HashLibTestCase(unittest.TestCase):
         large_sizes = (2**29, 2**32-10, 2**32+10, 2**61, 2**64-10, 2**64+10)
         for cons in self.hash_constructors:
             h = cons()
-            if h.name not in self.shakes:
-                continue
-            if cons.__name__.startswith('openssl_'):
+            if not self._has_shake_extras(h):
                 continue
             for digest in h.digest, h.hexdigest:
                 with self.assertRaises((ValueError, OverflowError)):
@@ -275,9 +297,7 @@ class HashLibTestCase(unittest.TestCase):
             m1.update(bees)
             m1.update(cees)
             m1.update(dees)
-            if (m1.name in self.shakes
-                and not cons.__name__.startswith('openssl_')
-            ):
+            if self._has_shake_extras(m1):
                 args = (16,)
             else:
                 args = ()
@@ -346,7 +366,8 @@ class HashLibTestCase(unittest.TestCase):
             self.assertRaises(TypeError, hash_object_constructor, 'spam')
 
     def test_no_unicode(self):
-        self.check_no_unicode('md5')
+        if not hashlib.get_fips_mode():
+            self.check_no_unicode('md5')
         self.check_no_unicode('sha1')
         self.check_no_unicode('sha224')
         self.check_no_unicode('sha256')
@@ -389,7 +410,8 @@ class HashLibTestCase(unittest.TestCase):
             self.assertIn(name.split("_")[0], repr(m))
 
     def test_blocksize_name(self):
-        self.check_blocksize_name('md5', 64, 16)
+        if not hashlib.get_fips_mode():
+            self.check_blocksize_name('md5', 64, 16)
         self.check_blocksize_name('sha1', 64, 20)
         self.check_blocksize_name('sha224', 64, 28)
         self.check_blocksize_name('sha256', 64, 32)
@@ -429,22 +451,27 @@ class HashLibTestCase(unittest.TestCase):
         self.check_blocksize_name('blake2b', 128, 64)
         self.check_blocksize_name('blake2s', 64, 32)
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_0(self):
         self.check('md5', b'', 'd41d8cd98f00b204e9800998ecf8427e')
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_1(self):
         self.check('md5', b'abc', '900150983cd24fb0d6963f7d28e17f72')
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_2(self):
         self.check('md5',
                    b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
                    'd174ab98d277d9f5a5611c2c9f419d9f')
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     @unittest.skipIf(sys.maxsize < _4G + 5, 'test cannot run on 32-bit systems')
     @bigmemtest(size=_4G + 5, memuse=1, dry_run=False)
     def test_case_md5_huge(self, size):
         self.check('md5', b'A'*size, 'c9af2dff37468ce5dfee8f2cfc0a9c6d')
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     @unittest.skipIf(sys.maxsize < _4G - 1, 'test cannot run on 32-bit systems')
     @bigmemtest(size=_4G - 1, memuse=1, dry_run=False)
     def test_case_md5_uintmax(self, size):
@@ -826,14 +853,16 @@ class HashLibTestCase(unittest.TestCase):
             m = cons(b'x' * gil_minsize)
             m.update(b'1')
 
-        m = hashlib.md5()
+        m = hashlib.sha1()
         m.update(b'1')
         m.update(b'#' * gil_minsize)
         m.update(b'1')
-        self.assertEqual(m.hexdigest(), 'cb1e1a2cbc80be75e19935d621fb9b21')
+        self.assertEqual(m.hexdigest(),
+                         'c45f7445ca0ea087d7a1758fbea07935f267c46a')
 
-        m = hashlib.md5(b'x' * gil_minsize)
-        self.assertEqual(m.hexdigest(), 'cfb767f225d58469c5de3632a8803958')
+        m = hashlib.sha1(b'x' * gil_minsize)
+        self.assertEqual(m.hexdigest(),
+                         '63fda1efde982ba1ffe9d53035bff5c9ce4758fb')
 
     @unittest.skipUnless(threading, 'Threading required for this test.')
     @support.reap_threads
