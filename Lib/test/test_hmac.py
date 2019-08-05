@@ -389,7 +389,7 @@ class CopyTestCase(unittest.TestCase):
         self.assertTrue(id(h1.outer) != id(h2.outer),
             "No real copy of the attribute 'outer'.")
 
-    def test_realcopy(self):
+    def test_realcopy_by_digest(self):
         # Testing if the copy method created a real copy.
         h1 = hmac.HMAC(b"key", digestmod="sha1")
         h2 = h1.copy()
