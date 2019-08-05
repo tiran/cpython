@@ -4,10 +4,14 @@ import os
 import unittest
 from test import support
 from test.support.script_helper import assert_python_ok, assert_python_failure
+import hashlib
 
 from test.test_tools import scriptsdir, skip_if_missing
 
 skip_if_missing()
+
+if hashlib.get_fips_mode():
+    raise unittest.SkipTest("md5sum won't work at all in FIPS mode")
 
 class MD5SumTests(unittest.TestCase):
     @classmethod
