@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import uuid
+import hashlib
 
 def importable(name):
     try:
@@ -366,6 +367,7 @@ class TestUUID(unittest.TestCase):
         equal(((u.clock_seq_hi_variant & 0x3f) << 8) |
                          u.clock_seq_low, 0x3fff)
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "uuid3 (md5-based) unacceptable in FIPS mode")
     def test_uuid3(self):
         equal = self.assertEqual
 
