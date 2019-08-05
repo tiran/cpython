@@ -46,6 +46,8 @@ import time
 import unittest
 import warnings
 import weakref
+import hashlib
+
 try:
     import threading
     # The following imports are needed only for tests which
@@ -1815,6 +1817,7 @@ class HTTPHandlerTest(BaseTest):
         request.end_headers()
         self.handled.set()
 
+    @unittest.skipIf(hashlib.get_fips_mode(), 'Hangs in FIPS mode.')
     def test_output(self):
         # The log message sent to the HTTPHandler is properly received.
         logger = logging.getLogger("http")
