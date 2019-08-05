@@ -54,7 +54,7 @@ class HashlibFipsTests(unittest.TestCase):
         self.compare_hashes(hashlib.sha512(b'abc'), _hashlib.openssl_sha512(b'abc'))
 
     def test_hmac_digests(self):
-        self.compare_hashes(_hmacopenssl.new(b'My hovercraft is full of eels', digestmod='sha384'),
+        self.compare_hashes(_hmacopenssl.HMAC(b'My hovercraft is full of eels', digestmod='sha384'),
                             hmac.new(b'My hovercraft is full of eels', digestmod='sha384'))
 
 

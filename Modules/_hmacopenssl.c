@@ -41,33 +41,25 @@ typedef struct {
 module _hmacopenssl
 class _hmacopenssl.HMAC "HmacObject *" "((hmacopenssl_state *)PyModule_GetState(module))->HmacType"
 [clinic start generated code]*/
-/*[clinic end generated code: output=da39a3ee5e6b4b0d input=204b7f45847f57b4]*/
+/*[clinic end generated code: output=da39a3ee5e6b4b0d input=9fe07a087adc2cf9]*/
 
-
-/*[clinic input]
-_hmacopenssl.new
-
-    key: Py_buffer
-    *
-    digestmod: str
-
-Return a new hmac object.
-[clinic start generated code]*/
 
 static PyObject *
-_hmacopenssl_new_impl(PyObject *module, Py_buffer *key,
-                      const char *digestmod)
-/*[clinic end generated code: output=46f1cb4e02921922 input=be8c0c2e4fad508c]*/
+Hmac_new(PyTypeObject *subtype, PyObject *args, PyObject *kwds)
 {
-    hmacopenssl_state *state;
+    static char *kwarg_names[] = {"key", "digestmod", NULL};
+    Py_buffer key = {NULL, NULL};
+    char *digestmod = NULL;
 
-    if (digestmod == NULL) {
-        PyErr_SetString(PyExc_ValueError, "digestmod must be specified");
+    int ret = PyArg_ParseTupleAndKeywords(
+        args, kwds, "y*|$s:_hmacopenssl.HMAC", kwarg_names,
+        &key, &digestmod);
+    if (ret == 0) {
         return NULL;
     }
 
-    state = PyModule_GetState(module);
-    if (state == NULL) {
+    if (digestmod == NULL) {
+        PyErr_SetString(PyExc_ValueError, "digestmod must be specified");
         return NULL;
     }
 
@@ -106,8 +98,8 @@ _hmacopenssl_new_impl(PyObject *module, Py_buffer *key,
 
     int r = HMAC_Init_ex(
         ctx,
-        (const char*)key->buf,
-        key->len,
+        (const char*)key.buf,
+        key.len,
         digest,
         NULL /*impl*/);
     if (r == 0) {
@@ -115,7 +107,10 @@ _hmacopenssl_new_impl(PyObject *module, Py_buffer *key,
         goto error;
     }
 
-    retval = (HmacObject *)PyObject_New(HmacObject, state->HmacType);
+    PyBuffer_Release(&key);
+    key.buf = NULL;
+
+    retval = (HmacObject *)subtype->tp_alloc(subtype, 0);
     if (retval == NULL) {
         goto error;
     }
@@ -130,6 +125,7 @@ error:
     if (ctx) HMAC_CTX_free(ctx);
     if (name) Py_DECREF(name);
     if (retval) PyObject_Del(name);
+    if (key.buf) PyBuffer_Release(&key);
     return NULL;
 }
 
@@ -145,19 +141,27 @@ _hmacopenssl_HMAC_copy_impl(HmacObject *self)
 {
     HmacObject *retval;
 
-    retval = (HmacObject *)PyObject_New(HmacObject, (PyTypeObject *)PyObject_Type((PyObject *)self));
-    if (retval == NULL) {
-        return NULL;
+    HMAC_CTX *ctx = HMAC_CTX_new();
+    if (ctx == NULL) {
+        return _setException(PyExc_ValueError);
     }
 
+    int r = HMAC_CTX_copy(ctx, self->ctx);
+    if (r == 0) {
+        HMAC_CTX_free(ctx);
+        return _setException(PyExc_ValueError);
+    }
+
+    retval = (HmacObject *)Py_TYPE(self)->tp_alloc(Py_TYPE(self), 0);
+    if (retval == NULL) {
+        HMAC_CTX_free(ctx);
+        return NULL;
+    }
+    retval->ctx = ctx;
     Py_INCREF(self->name);
     retval->name = self->name;
 
-    int r = HMAC_CTX_copy(retval->ctx, self->ctx);
-    if (r == 0) {
-        PyObject_Del(retval);
-        return _setException(PyExc_ValueError);
-    }
+    retval->lock = NULL;
 
     return (PyObject *)retval;
 }
@@ -169,8 +173,8 @@ _hmac_dealloc(HmacObject *self)
         PyThread_free_lock(self->lock);
     }
     HMAC_CTX_free(self->ctx);
-    Py_XDECREF(self->name);
-    PyObject_Del(self);
+    Py_CLEAR(self->name);
+    Py_TYPE(self)->tp_free(self);
 }
 
 static PyObject *
@@ -357,6 +361,7 @@ static PyType_Slot HmacType_slots[] = {
     {Py_tp_methods, Hmac_methods},
     {Py_tp_getset, Hmac_getset},
     {Py_tp_members, Hmac_members},
+    {Py_tp_new, Hmac_new},
     {0, NULL}
 };
 
@@ -367,11 +372,6 @@ PyType_Spec HmacType_spec = {
     .slots = HmacType_slots,
 };
 
-
-static struct PyMethodDef hmacopenssl_functions[] = {
-    _HMACOPENSSL_NEW_METHODDEF
-    {NULL,      NULL}            /* Sentinel */
-};
 
 static int
 hmacopenssl_traverse(PyObject *self, visitproc visit, void *arg)
@@ -444,7 +444,6 @@ static PyModuleDef_Slot hmacopenssl_slots[] = {
 static struct PyModuleDef _hmacopenssl_def = {
     PyModuleDef_HEAD_INIT,  /* m_base */
     .m_name = "_hmacopenssl",
-    .m_methods = hmacopenssl_functions,
     .m_slots = hmacopenssl_slots,
     .m_size = sizeof(hmacopenssl_state),
     .m_traverse = hmacopenssl_traverse,
