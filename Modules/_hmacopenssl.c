@@ -318,7 +318,7 @@ _hmacopenssl_get_block_size(HmacObject *self, void *closure)
     if (md == NULL) {
         return _setException(PyExc_ValueError);
     }
-    return PyLong_FromLong(EVP_MD_size(md));
+    return PyLong_FromLong(EVP_MD_block_size(md));
 }
 
 static PyMethodDef Hmac_methods[] = {
