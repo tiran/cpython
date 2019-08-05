@@ -157,6 +157,9 @@ def _get_openssl_name(digestmod):
 
 class HMAC_openssl(_hmacopenssl.HMAC):
     def __new__(cls, key, msg = None, digestmod = None):
+        if not isinstance(key, (bytes, bytearray)):
+            raise TypeError("key: expected bytes or bytearray, but got %r" % type(key).__name__)
+
         name = _get_openssl_name(digestmod)
         result = _hmacopenssl.HMAC.__new__(cls, key, digestmod=name)
         if msg:

@@ -17,6 +17,7 @@ def ignore_warning(func):
 
 class TestVectorsTestCase(unittest.TestCase):
 
+    @unittest.skipIf(hashlib.get_fips_mode(), 'md5 unacceptable in FIPS mode.')
     def test_md5_vectors(self):
         # Test the HMAC module against test vectors from the RFC.
 
@@ -242,6 +243,7 @@ class TestVectorsTestCase(unittest.TestCase):
     def test_sha512_rfc4231(self):
         self._rfc4231_test_cases(hashlib.sha512, 'sha512', 64, 128)
 
+    @unittest.skipIf(hashlib.get_fips_mode(), 'MockCrazyHash unacceptable in FIPS mode.')
     def test_legacy_block_size_warnings(self):
         class MockCrazyHash(object):
             """Ain't no block_size attribute here."""
@@ -264,6 +266,7 @@ class TestVectorsTestCase(unittest.TestCase):
                 hmac.HMAC(b'a', b'b', digestmod=MockCrazyHash)
                 self.fail('Expected warning about small block_size')
 
+    @unittest.skipIf(hashlib.get_fips_mode(), 'md5 is not default in FIPS mode.')
     def test_with_digestmod_warning(self):
         with self.assertWarns(PendingDeprecationWarning):
             key = b"\x0b" * 16
@@ -275,12 +278,21 @@ class TestVectorsTestCase(unittest.TestCase):
 
 class ConstructorTestCase(unittest.TestCase):
 
+    @unittest.skipIf(hashlib.get_fips_mode(), 'md5 is not default in FIPS mode.')
     @ignore_warning
     def test_normal(self):
         # Standard constructor call.
         failed = 0
         try:
             h = hmac.HMAC(b"key")
+        except Exception:
+            self.fail("Standard constructor call raised exception.")
+
+    def test_normal_digestmod(self):
+        # Standard constructor call.
+        failed = 0
+        try:
+            h = hmac.HMAC(b"key", digestmod='sha1')
         except Exception:
             self.fail("Standard constructor call raised exception.")
 
@@ -302,25 +314,25 @@ class ConstructorTestCase(unittest.TestCase):
     def test_withtext(self):
         # Constructor call with text.
         try:
-            h = hmac.HMAC(b"key", b"hash this!")
+            h = hmac.HMAC(b"key", b"hash this!", digestmod='sha1')
         except Exception:
             self.fail("Constructor call with text argument raised exception.")
-        self.assertEqual(h.hexdigest(), '34325b639da4cfd95735b381e28cb864')
+        self.assertEqual(h.hexdigest(), '3f2e20f3e2f006270db98760b9725a008c5bd114')
 
     def test_with_bytearray(self):
         try:
             h = hmac.HMAC(bytearray(b"key"), bytearray(b"hash this!"),
-                          digestmod="md5")
+                          digestmod="sha1")
         except Exception:
             self.fail("Constructor call with bytearray arguments raised exception.")
-        self.assertEqual(h.hexdigest(), '34325b639da4cfd95735b381e28cb864')
+        self.assertEqual(h.hexdigest(), '3f2e20f3e2f006270db98760b9725a008c5bd114')
 
     def test_with_memoryview_msg(self):
         try:
-            h = hmac.HMAC(b"key", memoryview(b"hash this!"), digestmod="md5")
+            h = hmac.HMAC(b"key", memoryview(b"hash this!"), digestmod="sha1")
         except Exception:
             self.fail("Constructor call with memoryview msg raised exception.")
-        self.assertEqual(h.hexdigest(), '34325b639da4cfd95735b381e28cb864')
+        self.assertEqual(h.hexdigest(), '3f2e20f3e2f006270db98760b9725a008c5bd114')
 
     def test_withmodule(self):
         # Constructor call with text and digest module.
@@ -331,6 +343,7 @@ class ConstructorTestCase(unittest.TestCase):
 
 class SanityTestCase(unittest.TestCase):
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 is not default in FIPS mode")
     @ignore_warning
     def test_default_is_md5(self):
         # Testing if HMAC defaults to MD5 algorithm.
@@ -342,7 +355,7 @@ class SanityTestCase(unittest.TestCase):
         # Exercising all methods once.
         # This must not raise any exceptions
         try:
-            h = hmac.HMAC(b"my secret key", digestmod="md5")
+            h = hmac.HMAC(b"my secret key", digestmod="sha1")
             h.update(b"compute the hash of this text!")
             dig = h.digest()
             dig = h.hexdigest()
@@ -352,9 +365,10 @@ class SanityTestCase(unittest.TestCase):
 
 class CopyTestCase(unittest.TestCase):
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "Internal attributes unavailable in FIPS mode")
     def test_attributes(self):
         # Testing if attributes are of same type.
-        h1 = hmac.HMAC(b"key", digestmod="md5")
+        h1 = hmac.HMAC(b"key", digestmod="sha1")
         h2 = h1.copy()
         self.assertTrue(h1.digest_cons == h2.digest_cons,
             "digest constructors don't match.")
@@ -363,9 +377,10 @@ class CopyTestCase(unittest.TestCase):
         self.assertEqual(type(h1.outer), type(h2.outer),
             "Types of outer don't match.")
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "Internal attributes unavailable in FIPS mode")
     def test_realcopy(self):
         # Testing if the copy method created a real copy.
-        h1 = hmac.HMAC(b"key", digestmod="md5")
+        h1 = hmac.HMAC(b"key", digestmod="sha1")
         h2 = h1.copy()
         # Using id() in case somebody has overridden __eq__/__ne__.
         self.assertTrue(id(h1) != id(h2), "No real copy of the HMAC instance.")
@@ -374,9 +389,24 @@ class CopyTestCase(unittest.TestCase):
         self.assertTrue(id(h1.outer) != id(h2.outer),
             "No real copy of the attribute 'outer'.")
 
+    def test_realcopy(self):
+        # Testing if the copy method created a real copy.
+        h1 = hmac.HMAC(b"key", digestmod="sha1")
+        h2 = h1.copy()
+        # Using id() in case somebody has overridden __eq__/__ne__.
+        self.assertTrue(id(h1) != id(h2), "No real copy of the HMAC instance.")
+        old_digest = h1.digest()
+        assert h1.digest() == h2.digest()
+        h1.update(b'hi')
+        assert h1.digest() != h2.digest()
+        assert h2.digest() == old_digest
+        new_digest = h1.digest()
+        h2.update(b'hi')
+        assert h1.digest() == h2.digest() == new_digest
+
     def test_equality(self):
         # Testing if the copy has the same digests.
-        h1 = hmac.HMAC(b"key", digestmod="md5")
+        h1 = hmac.HMAC(b"key", digestmod="sha1")
         h1.update(b"some random text")
         h2 = h1.copy()
         self.assertEqual(h1.digest(), h2.digest(),
