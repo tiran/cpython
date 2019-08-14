@@ -102,6 +102,7 @@ class upload(PyPIRCCommand):
             'content': (os.path.basename(filename),content),
             'filetype': command,
             'pyversion': pyversion,
+            'sha256_digest': hashlib.sha256(content).hexdigest(),
 
             # additional meta-data
             'metadata_version': '1.0',
@@ -124,7 +125,7 @@ class upload(PyPIRCCommand):
             digest = hashlib.md5(content).hexdigest()
         except ValueError as e:
             msg = 'calculating md5 checksum failed: %s' % e
-            self.announce(msg, log.ERROR)
+            self.announce(msg, log.INFO)
             if not hashlib.get_fips_mode():
                 # this really shouldn't fail
                 raise

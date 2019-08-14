@@ -132,10 +132,11 @@ class uploadTestCase(BasePyPIRCCommandTestCase):
         # what did we send ?
         headers = dict(self.last_open.req.headers)
         if hashlib.get_fips_mode():
-            # md5 hash is omitted
-            self.assertEqual(headers['Content-length'], '2020')
+            # only sha256 hash is used
+            self.assertEqual(headers['Content-length'], '2197')
         else:
-            self.assertEqual(headers['Content-length'], '2162')
+            # both sha256 and md5 hashes are used
+            self.assertEqual(headers['Content-length'], '2339')
         content_type = headers['Content-type']
         self.assertTrue(content_type.startswith('multipart/form-data'))
         self.assertEqual(self.last_open.req.get_method(), 'POST')
@@ -172,10 +173,11 @@ class uploadTestCase(BasePyPIRCCommandTestCase):
 
         headers = dict(self.last_open.req.headers)
         if hashlib.get_fips_mode():
-            # md5 hash is omitted
-            self.assertEqual(headers['Content-length'], '2030')
+            # only sha256 hash is used
+            self.assertEqual(headers['Content-length'], '2207')
         else:
-            self.assertEqual(headers['Content-length'], '2172')
+            # both sha256 and md5 hashes are used
+            self.assertEqual(headers['Content-length'], '2349')
         self.assertIn(b'long description\r', self.last_open.req.data)
 
     def test_upload_fails(self):
