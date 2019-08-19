@@ -476,6 +476,7 @@ def _netbios_getnode():
 # If ctypes is available, use it to find system routines for UUID generation.
 # XXX This makes the module non-thread-safe!
 _uuid_generate_time = _UuidCreate = None
+_uuid_generate_md5 = None
 try:
     import ctypes, ctypes.util
     import sys
@@ -492,6 +493,8 @@ try:
             continue
         if hasattr(lib, 'uuid_generate_time'):
             _uuid_generate_time = lib.uuid_generate_time
+            # The library that has uuid_generate_time should have md5 too.
+            _uuid_generate_md5 = getattr(lib, 'uuid_generate_md5')
             break
     del _libnames
 
@@ -614,6 +617,12 @@ def uuid1(node=None, clock_seq=None):
 
 def uuid3(namespace, name):
     """Generate a UUID from the MD5 hash of a namespace UUID and a name."""
+    if _uuid_generate_md5:
+        name_b = bytes(name, "utf-8")
+        _buffer = ctypes.create_string_buffer(16)
+        _uuid_generate_md5(_buffer, namespace.bytes, name_b, len(name_b))
+        return UUID(bytes=bytes_(_buffer.raw))
+
     from hashlib import md5
     hash = md5(namespace.bytes + bytes(name, "utf-8")).digest()
     return UUID(bytes=hash[:16], version=3)
