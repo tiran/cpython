@@ -30,7 +30,9 @@ COMPILED_WITH_PYDEBUG = hasattr(sys, 'gettotalrefcount')
 c_hashlib = import_fresh_module('hashlib', fresh=['_hashlib'])
 py_hashlib = import_fresh_module('hashlib', blocked=['_hashlib'])
 
-if hashlib.get_fips_mode():
+from _hashlib import get_fips_mode as _get_fips_mode
+
+if _get_fips_mode():
     FIPS_UNAVAILABLE = {'blake2b', 'blake2s'}
     FIPS_DISABLED = {'md5', 'MD5', *FIPS_UNAVAILABLE}
 else:
@@ -101,7 +103,7 @@ class HashLibTestCase(unittest.TestCase):
     # Issue #14693: fallback modules are always compiled under POSIX
     _warn_on_extension_import = os.name == 'posix' or COMPILED_WITH_PYDEBUG
 
-    if hashlib.get_fips_mode():
+    if _get_fips_mode():
         shakes = set()
 
     def _conditional_import_module(self, module_name):
@@ -112,7 +114,7 @@ class HashLibTestCase(unittest.TestCase):
             if self._warn_on_extension_import:
                 warnings.warn('Did a C extension fail to compile? %s' % error)
         except ImportError as error:
-            if not hashlib.get_fips_mode():
+            if not _get_fips_mode():
                 raise
         return None
 
@@ -236,12 +238,12 @@ class HashLibTestCase(unittest.TestCase):
         self.assertRaises(ValueError, hashlib.new, 'spam spam spam spam spam')
         self.assertRaises(TypeError, hashlib.new, 1)
 
-    @unittest.skipUnless(hashlib.get_fips_mode(), "Builtin constructor only unavailable in FIPS mode")
+    @unittest.skipUnless(_get_fips_mode(), "Builtin constructor only unavailable in FIPS mode")
     def test_get_builtin_constructor_fips(self):
         with self.assertRaises(AttributeError):
             hashlib.__get_builtin_constructor
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "No builtin constructors in FIPS mode")
+    @unittest.skipIf(_get_fips_mode(), "No builtin constructors in FIPS mode")
     def test_get_builtin_constructor(self):
         get_builtin_constructor = getattr(hashlib,
                                           '__get_builtin_constructor')
@@ -430,7 +432,7 @@ class HashLibTestCase(unittest.TestCase):
             self.assertIn(name.split("_")[0], repr(m))
 
     def test_blocksize_name(self):
-        if not hashlib.get_fips_mode():
+        if not _get_fips_mode():
             self.check_blocksize_name('md5', 64, 16)
         self.check_blocksize_name('sha1', 64, 20)
         self.check_blocksize_name('sha224', 64, 28)
@@ -917,7 +919,7 @@ class HashLibTestCase(unittest.TestCase):
 
         self.assertEqual(expected_hash, hasher.hexdigest())
 
-    @unittest.skipUnless(hashlib.get_fips_mode(), 'Needs FIPS mode.')
+    @unittest.skipUnless(_get_fips_mode(), 'Needs FIPS mode.')
     def test_usedforsecurity_repeat(self):
         """Make sure usedforsecurity flag isn't copied to other contexts"""
         for i in range(3):

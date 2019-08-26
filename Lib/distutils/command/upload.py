@@ -126,7 +126,8 @@ class upload(PyPIRCCommand):
         except ValueError as e:
             msg = 'calculating md5 checksum failed: %s' % e
             self.announce(msg, log.INFO)
-            if not hashlib.get_fips_mode():
+            from _hashlib import get_fips_mode
+            if not get_fips_mode():
                 # this really shouldn't fail
                 raise
         else:

@@ -16,6 +16,7 @@ import select
 import errno
 import textwrap
 import hashlib
+from _hashlib import get_fips_mode
 
 import unittest
 from test import support, mock_socket
@@ -969,7 +970,7 @@ class SMTPSimTests(unittest.TestCase):
         self.assertEqual(resp, (235, b'Authentication Succeeded'))
         smtp.close()
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "md5 auth unacceptable in FIPS mode")
+    @unittest.skipIf(get_fips_mode(), "md5 auth unacceptable in FIPS mode")
     def testAUTH_CRAM_MD5(self):
         self.serv.add_feature("AUTH CRAM-MD5")
         smtp = smtplib.SMTP(HOST, self.port, local_hostname='localhost', timeout=15)
@@ -977,7 +978,7 @@ class SMTPSimTests(unittest.TestCase):
         self.assertEqual(resp, (235, b'Authentication Succeeded'))
         smtp.close()
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "md5 auth unacceptable in FIPS mode")
+    @unittest.skipIf(get_fips_mode(), "md5 auth unacceptable in FIPS mode")
     def testAUTH_multiple(self):
         # Test that multiple authentication methods are tried.
         self.serv.add_feature("AUTH BOGUS PLAIN LOGIN CRAM-MD5")
@@ -986,7 +987,7 @@ class SMTPSimTests(unittest.TestCase):
         self.assertEqual(resp, (235, b'Authentication Succeeded'))
         smtp.close()
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "md5 auth unacceptable in FIPS mode")
+    @unittest.skipIf(get_fips_mode(), "md5 auth unacceptable in FIPS mode")
     def test_auth_function(self):
         supported = {'CRAM-MD5', 'PLAIN', 'LOGIN'}
         for mechanism in supported:

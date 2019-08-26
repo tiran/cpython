@@ -4,6 +4,7 @@ import unittest
 import unittest.mock as mock
 from urllib.request import HTTPError
 import hashlib
+from _hashlib import get_fips_mode
 
 from test.support import run_unittest
 
@@ -131,7 +132,7 @@ class uploadTestCase(BasePyPIRCCommandTestCase):
 
         # what did we send ?
         headers = dict(self.last_open.req.headers)
-        if hashlib.get_fips_mode():
+        if get_fips_mode():
             # only sha256 hash is used
             self.assertEqual(headers['Content-length'], '2197')
         else:
@@ -172,7 +173,7 @@ class uploadTestCase(BasePyPIRCCommandTestCase):
         cmd.run()
 
         headers = dict(self.last_open.req.headers)
-        if hashlib.get_fips_mode():
+        if get_fips_mode():
             # only sha256 hash is used
             self.assertEqual(headers['Content-length'], '2207')
         else:

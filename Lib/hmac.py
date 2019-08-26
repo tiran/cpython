@@ -39,7 +39,7 @@ class HMAC:
 
         Note: key and msg must be a bytes or bytearray objects.
         """
-        if _hashlib.get_fips_mode():
+        if _hashlibopenssl.get_fips_mode():
             raise ValueError(
                 'This class is not available in FIPS mode. '
                 + 'Use hmac.new().'
@@ -97,7 +97,7 @@ class HMAC:
     def update(self, msg):
         """Update this hashing object with the string msg.
         """
-        if _hashlib.get_fips_mode():
+        if _hashlibopenssl.get_fips_mode():
             raise ValueError('hmac.HMAC is not available in FIPS mode')
         self.inner.update(msg)
 
@@ -167,7 +167,7 @@ class HMAC_openssl(_hmacopenssl.HMAC):
         return result
 
 
-if _hashlib.get_fips_mode():
+if _hashlibopenssl.get_fips_mode():
     HMAC = HMAC_openssl
 
 

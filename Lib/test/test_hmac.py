@@ -3,6 +3,7 @@ import hmac
 import hashlib
 import unittest
 import warnings
+from _hashlib import get_fips_mode
 
 
 def ignore_warning(func):
@@ -17,7 +18,7 @@ def ignore_warning(func):
 
 class TestVectorsTestCase(unittest.TestCase):
 
-    @unittest.skipIf(hashlib.get_fips_mode(), 'md5 unacceptable in FIPS mode.')
+    @unittest.skipIf(get_fips_mode(), 'md5 unacceptable in FIPS mode.')
     def test_md5_vectors(self):
         # Test the HMAC module against test vectors from the RFC.
 
@@ -243,7 +244,7 @@ class TestVectorsTestCase(unittest.TestCase):
     def test_sha512_rfc4231(self):
         self._rfc4231_test_cases(hashlib.sha512, 'sha512', 64, 128)
 
-    @unittest.skipIf(hashlib.get_fips_mode(), 'MockCrazyHash unacceptable in FIPS mode.')
+    @unittest.skipIf(get_fips_mode(), 'MockCrazyHash unacceptable in FIPS mode.')
     def test_legacy_block_size_warnings(self):
         class MockCrazyHash(object):
             """Ain't no block_size attribute here."""
@@ -266,7 +267,7 @@ class TestVectorsTestCase(unittest.TestCase):
                 hmac.HMAC(b'a', b'b', digestmod=MockCrazyHash)
                 self.fail('Expected warning about small block_size')
 
-    @unittest.skipIf(hashlib.get_fips_mode(), 'md5 is not default in FIPS mode.')
+    @unittest.skipIf(get_fips_mode(), 'md5 is not default in FIPS mode.')
     def test_with_digestmod_warning(self):
         with self.assertWarns(PendingDeprecationWarning):
             key = b"\x0b" * 16
@@ -278,7 +279,7 @@ class TestVectorsTestCase(unittest.TestCase):
 
 class ConstructorTestCase(unittest.TestCase):
 
-    @unittest.skipIf(hashlib.get_fips_mode(), 'md5 is not default in FIPS mode.')
+    @unittest.skipIf(get_fips_mode(), 'md5 is not default in FIPS mode.')
     @ignore_warning
     def test_normal(self):
         # Standard constructor call.
@@ -343,7 +344,7 @@ class ConstructorTestCase(unittest.TestCase):
 
 class SanityTestCase(unittest.TestCase):
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "md5 is not default in FIPS mode")
+    @unittest.skipIf(get_fips_mode(), "md5 is not default in FIPS mode")
     @ignore_warning
     def test_default_is_md5(self):
         # Testing if HMAC defaults to MD5 algorithm.
@@ -365,7 +366,7 @@ class SanityTestCase(unittest.TestCase):
 
 class CopyTestCase(unittest.TestCase):
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "Internal attributes unavailable in FIPS mode")
+    @unittest.skipIf(get_fips_mode(), "Internal attributes unavailable in FIPS mode")
     def test_attributes(self):
         # Testing if attributes are of same type.
         h1 = hmac.HMAC(b"key", digestmod="sha1")
@@ -377,7 +378,7 @@ class CopyTestCase(unittest.TestCase):
         self.assertEqual(type(h1.outer), type(h2.outer),
             "Types of outer don't match.")
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "Internal attributes unavailable in FIPS mode")
+    @unittest.skipIf(get_fips_mode(), "Internal attributes unavailable in FIPS mode")
     def test_realcopy(self):
         # Testing if the copy method created a real copy.
         h1 = hmac.HMAC(b"key", digestmod="sha1")
