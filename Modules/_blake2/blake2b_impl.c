@@ -87,6 +87,8 @@ _blake2.blake2b.__new__ as py_blake2b_new
     inner_size: int = 0
     last_node: bool = False
 
+    usedforsecurity: bool = True
+
 Return a new BLAKE2b hash object.
 [clinic start generated code]*/
 
@@ -95,8 +97,8 @@ py_blake2b_new_impl(PyTypeObject *type, PyObject *data, int digest_size,
                     Py_buffer *key, Py_buffer *salt, Py_buffer *person,
                     int fanout, int depth, PyObject *leaf_size_obj,
                     PyObject *node_offset_obj, int node_depth,
-                    int inner_size, int last_node)
-/*[clinic end generated code: output=7506d8d890e5f13b input=aca35b33c5612b4b]*/
+                    int inner_size, int last_node, int usedforsecurity)
+/*[clinic end generated code: output=02dcc52ee784622b input=c5dfcb847f9065ac]*/
 {
     BLAKE2bObject *self = NULL;
     Py_buffer buf;

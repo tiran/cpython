@@ -185,6 +185,11 @@ py_sha3_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     HashReturn res;
     PyObject *data = NULL;
 
+    // Ignore "usedforsecurity"
+    if (PyMapping_DelItemString(kwargs, "usedforsecurity")) {
+        PyErr_Clear();
+    }
+
     if (!_PyArg_NoKeywords(type->tp_name, kwargs)) {
         return NULL;
     }

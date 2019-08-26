@@ -5,7 +5,8 @@ preserve
 PyDoc_STRVAR(py_blake2b_new__doc__,
 "blake2b(data=b\'\', /, *, digest_size=_blake2.blake2b.MAX_DIGEST_SIZE,\n"
 "        key=b\'\', salt=b\'\', person=b\'\', fanout=1, depth=1, leaf_size=0,\n"
-"        node_offset=0, node_depth=0, inner_size=0, last_node=False)\n"
+"        node_offset=0, node_depth=0, inner_size=0, last_node=False,\n"
+"        usedforsecurity=True)\n"
 "--\n"
 "\n"
 "Return a new BLAKE2b hash object.");
@@ -15,14 +16,14 @@ py_blake2b_new_impl(PyTypeObject *type, PyObject *data, int digest_size,
                     Py_buffer *key, Py_buffer *salt, Py_buffer *person,
                     int fanout, int depth, PyObject *leaf_size_obj,
                     PyObject *node_offset_obj, int node_depth,
-                    int inner_size, int last_node);
+                    int inner_size, int last_node, int usedforsecurity);
 
 static PyObject *
 py_blake2b_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     PyObject *return_value = NULL;
-    static const char * const _keywords[] = {"", "digest_size", "key", "salt", "person", "fanout", "depth", "leaf_size", "node_offset", "node_depth", "inner_size", "last_node", NULL};
-    static _PyArg_Parser _parser = {"|O$iy*y*y*iiOOiip:blake2b", _keywords, 0};
+    static const char * const _keywords[] = {"", "digest_size", "key", "salt", "person", "fanout", "depth", "leaf_size", "node_offset", "node_depth", "inner_size", "last_node", "usedforsecurity", NULL};
+    static _PyArg_Parser _parser = {"|O$iy*y*y*iiOOiipp:blake2b", _keywords, 0};
     PyObject *data = NULL;
     int digest_size = BLAKE2B_OUTBYTES;
     Py_buffer key = {NULL, NULL};
@@ -35,12 +36,13 @@ py_blake2b_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     int node_depth = 0;
     int inner_size = 0;
     int last_node = 0;
+    int usedforsecurity = 1;
 
     if (!_PyArg_ParseTupleAndKeywordsFast(args, kwargs, &_parser,
-        &data, &digest_size, &key, &salt, &person, &fanout, &depth, &leaf_size_obj, &node_offset_obj, &node_depth, &inner_size, &last_node)) {
+        &data, &digest_size, &key, &salt, &person, &fanout, &depth, &leaf_size_obj, &node_offset_obj, &node_depth, &inner_size, &last_node, &usedforsecurity)) {
         goto exit;
     }
-    return_value = py_blake2b_new_impl(type, data, digest_size, &key, &salt, &person, fanout, depth, leaf_size_obj, node_offset_obj, node_depth, inner_size, last_node);
+    return_value = py_blake2b_new_impl(type, data, digest_size, &key, &salt, &person, fanout, depth, leaf_size_obj, node_offset_obj, node_depth, inner_size, last_node, usedforsecurity);
 
 exit:
     /* Cleanup for key */
@@ -121,4 +123,4 @@ _blake2_blake2b_hexdigest(BLAKE2bObject *self, PyObject *Py_UNUSED(ignored))
 {
     return _blake2_blake2b_hexdigest_impl(self);
 }
-/*[clinic end generated code: output=0eb559f418fc0a21 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=d5f214b052c75135 input=a9049054013a1b77]*/
