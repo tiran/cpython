@@ -318,6 +318,25 @@ EVP_repr(EVPobject *self)
     return PyUnicode_FromFormat("<%U HASH object @ %p>", self->name, self);
 }
 
+
+static void
+mc_ctx_init(EVP_MD_CTX *ctx, int usedforsecurity)
+{
+    EVP_MD_CTX_init(ctx);
+    /*
+      If the user has declared that this digest is being used in a
+      non-security role (e.g. indexing into a data structure), set
+      the exception flag for openssl to allow it
+    */
+    if (!usedforsecurity) {
+#ifdef EVP_MD_CTX_FLAG_NON_FIPS_ALLOW
+        EVP_MD_CTX_set_flags(ctx,
+                             EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
+#endif
+    }
+}
+
+
 #if HASH_OBJ_CONSTRUCTOR
 static int
 EVP_tp_init(EVPobject *self, PyObject *args, PyObject *kwds)
@@ -328,9 +347,10 @@ EVP_tp_init(EVPobject *self, PyObject *args, PyObject *kwds)
     Py_buffer view;
     char *nameStr;
     const EVP_MD *digest;
+    int usedforsecurity=1;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O:HASH", kwlist,
-                                     &name_obj, &data_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O$d:HASH", kwlist,
+                                     &name_obj, &data_obj, &usedforsecurity)) {
         return -1;
     }
 
@@ -351,7 +371,8 @@ EVP_tp_init(EVPobject *self, PyObject *args, PyObject *kwds)
             PyBuffer_Release(&view);
         return -1;
     }
-    if (!EVP_DigestInit(self->ctx, digest)) {
+    mc_ctx_init(&self->ctx, usedforsecurity);
+    if (!EVP_DigestInit_ex(self->ctx, digest, NULL)) {
         _setException(PyExc_ValueError);
         if (data_obj)
             PyBuffer_Release(&view);
@@ -440,7 +461,7 @@ static PyTypeObject EVPtype = {
 static PyObject *
 EVPnew(PyObject *name_obj,
        const EVP_MD *digest, const EVP_MD_CTX *initial_ctx,
-       const unsigned char *cp, Py_ssize_t len)
+       const unsigned char *cp, Py_ssize_t len, int usedforsecurity)
 {
     EVPobject *self;
 
@@ -455,7 +476,8 @@ EVPnew(PyObject *name_obj,
     if (initial_ctx) {
         EVP_MD_CTX_copy(self->ctx, initial_ctx);
     } else {
-        if (!EVP_DigestInit(self->ctx, digest)) {
+        mc_ctx_init(self->ctx, usedforsecurity);
+        if (!EVP_DigestInit_ex(self->ctx, digest, NULL)) {
             _setException(PyExc_ValueError);
             Py_DECREF(self);
             return NULL;
@@ -484,26 +506,35 @@ An optional string argument may be provided and will be\n\
 automatically hashed.\n\
 \n\
 The MD5 and SHA1 algorithms are always supported.\n");
+static PyObject *_EVP_new_impl(PyObject *name_obj, char *name, PyObject *data_obj, int usedforsecurity);
 
 static PyObject *
 EVP_new(PyObject *self, PyObject *args, PyObject *kwdict)
 {
-    static char *kwlist[] = {"name", "string", NULL};
+    static char *kwlist[] = {"name", "string", "usedforsecurity", NULL};
     PyObject *name_obj = NULL;
     PyObject *data_obj = NULL;
-    Py_buffer view = { 0 };
-    PyObject *ret_obj;
-    char *name;
-    const EVP_MD *digest;
+    int usedforsecurity = 1;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "O|O:new", kwlist,
-                                     &name_obj, &data_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "O|O$p:new", kwlist,
+                                     &name_obj, &data_obj, &usedforsecurity)) {
         return NULL;
     }
+    return _EVP_new_impl(name_obj, NULL, data_obj, usedforsecurity);
+}
 
-    if (!PyArg_Parse(name_obj, "s", &name)) {
-        PyErr_SetString(PyExc_TypeError, "name must be a string");
-        return NULL;
+static PyObject *
+_EVP_new_impl(PyObject *name_obj, char *name, PyObject *data_obj, int usedforsecurity)
+{
+    Py_buffer view = { 0 };
+    PyObject *ret_obj;
+    const EVP_MD *digest;
+
+    if (!name) {
+        if (!PyArg_Parse(name_obj, "s", &name)) {
+            PyErr_SetString(PyExc_TypeError, "name must be a string");
+            return NULL;
+        }
     }
 
     if (data_obj)
@@ -511,7 +542,7 @@ EVP_new(PyObject *self, PyObject *args, PyObject *kwdict)
 
     digest = EVP_get_digestbyname(name);
 
-    ret_obj = EVPnew(name_obj, digest, NULL, (unsigned char*)view.buf, view.len);
+    ret_obj = EVPnew(name_obj, digest, NULL, (unsigned char*)view.buf, view.len, usedforsecurity);
 
     if (data_obj)
         PyBuffer_Release(&view);
@@ -906,17 +937,26 @@ generate_hash_name_list(void)
  *  code that wants to make hashes of a bunch of small strings.
  *  The first call will lazy-initialize, which reports an exception
  *  if initialization fails.
+ *
+ *  Note that for usedforsecurity=0, we fall back to new().
  */
 #define GEN_CONSTRUCTOR(NAME, SSL_NAME)  \
     static PyObject * \
-    EVP_new_ ## NAME (PyObject *self, PyObject *args) \
+    EVP_new_ ## NAME (PyObject *self, PyObject *args, PyObject *kw) \
     { \
         PyObject *data_obj = NULL; \
         Py_buffer view = { 0 }; \
         PyObject *ret_obj; \
+        int usedforsecurity = 1; \
+        char *kwnames[] = {"", "usedforsecurity", NULL}; \
      \
-        if (!PyArg_ParseTuple(args, "|O:" #NAME , &data_obj)) { \
+        if (!PyArg_ParseTupleAndKeywords(args, kw, "|O$p:" #NAME, kwnames, &data_obj, &usedforsecurity)) { \
             return NULL; \
+        } \
+        if (!usedforsecurity) { \
+            return _EVP_new_impl( \
+                CONST_ ## NAME ## _name_obj, SSL_NAME, \
+                data_obj, usedforsecurity); \
         } \
      \
         if (CONST_new_ ## NAME ## _ctx_p == NULL) { \
@@ -938,7 +978,8 @@ generate_hash_name_list(void)
                     NULL, \
                     CONST_new_ ## NAME ## _ctx_p, \
                     (unsigned char*)view.buf, \
-                    view.len); \
+                    view.len, \
+                    usedforsecurity); \
      \
         if (data_obj) \
             PyBuffer_Release(&view); \
@@ -947,7 +988,8 @@ generate_hash_name_list(void)
 
 /* a PyMethodDef structure for the constructor */
 #define CONSTRUCTOR_METH_DEF(NAME)  \
-    {"openssl_" #NAME, (PyCFunction)EVP_new_ ## NAME, METH_VARARGS, \
+    {"openssl_" #NAME, (PyCFunction)EVP_new_ ## NAME, \
+        METH_VARARGS|METH_KEYWORDS, \
         PyDoc_STR("Returns a " #NAME \
                   " hash object; optionally initialized with a string") \
     },

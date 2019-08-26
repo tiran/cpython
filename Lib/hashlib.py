@@ -174,7 +174,9 @@ def __hash_new(name, data=b'', **kwargs):
             # salt, personal, tree hashing or SSE.
             return __get_builtin_constructor(name)(data, **kwargs)
     try:
-        retval = _hashlib.new(name, data)
+        usedforsecurity = kwargs.pop('usedforsecurity', True)
+        retval = _hashlib.new(
+            name, data, usedforsecurity=usedforsecurity)
         if get_fips_mode() and name != orig_name:
             retval._set_name(orig_name)
         return retval
