@@ -1021,20 +1021,22 @@ static PyObject *
 _hashlib_get_fips_mode_impl(PyObject *module)
 /*[clinic end generated code: output=ad8a7793310d3f98 input=f42a2135df2a5e11]*/
 {
-    int result = FIPS_mode();
-    if (result == 0) {
-        // "If the library was built without support of the FIPS Object Module,
-        // then the function will return 0 with an error code of
-        // CRYPTO_R_FIPS_MODE_NOT_SUPPORTED (0x0f06d065)."
-        // But 0 is also a valid result value.
+    // XXX: This function skips error checking.
+    // This is only appropriate for RHEL.
 
-        unsigned long errcode = ERR_peek_last_error();
-        if (errcode) {
-            _setException(PyExc_ValueError);
-            return NULL;
-        }
-    }
-    return PyLong_FromLong(result);
+    // From the OpenSSL docs:
+    // "If the library was built without support of the FIPS Object Module,
+    // then the function will return 0 with an error code of
+    // CRYPTO_R_FIPS_MODE_NOT_SUPPORTED (0x0f06d065)."
+    // In RHEL:
+    // * we do build with FIPS, so the function always succeeds
+    // * even if it didn't, people seem used to errors being left on the
+    //   OpenSSL error stack.
+
+    // For more info, see:
+    //  https://bugzilla.redhat.com/show_bug.cgi?id=1745499
+
+    return PyLong_FromLong(FIPS_mode());
 }
 
 
