@@ -42,16 +42,10 @@ static int
 _Py_hashlib_fips_error(PyObject *exc, char *name) {
     int result = FIPS_mode();
     if (result == 0) {
-        // "If the library was built without support of the FIPS Object Module,
-        // then the function will return 0 with an error code of
-        // CRYPTO_R_FIPS_MODE_NOT_SUPPORTED (0x0f06d065)."
-        // But 0 is also a valid result value.
+        // XXX: This function skips error checking.
+        // This is only appropriate for RHEL.
+        // See _hashlib.get_fips_mode for details.
 
-        unsigned long errcode = ERR_peek_last_error();
-        if (errcode) {
-            _setException(exc);
-            return 1;
-        }
         return 0;
     }
     PyErr_Format(exc, "%s is not available in FIPS mode", name);
