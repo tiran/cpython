@@ -1362,6 +1362,11 @@ class GetRandomTests(unittest.TestCase):
                 raise unittest.SkipTest("getrandom() syscall fails with ENOSYS")
             else:
                 raise
+        except ValueError as exc:
+            if exc.args[0] == "getrandom is not FIPS compliant":
+                raise unittest.SkipTest("Skip in FIPS mode")
+            else:
+                raise
 
     def test_getrandom_type(self):
         data = os.getrandom(16)

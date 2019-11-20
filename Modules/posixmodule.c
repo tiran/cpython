@@ -397,6 +397,9 @@ static int win32_can_symlink = 0;
 #define MODNAME "posix"
 #endif
 
+/* for FIPS check in os.getrandom() */
+#include <openssl/crypto.h>
+
 #ifdef MS_WINDOWS
 /* defined in fileutils.c */
 PyAPI_FUNC(void) _Py_time_t_to_FILE_TIME(time_t, int, FILETIME *);
@@ -12194,6 +12197,11 @@ os_getrandom_impl(PyObject *module, Py_ssize_t size, int flags)
     if (size < 0) {
         errno = EINVAL;
         return posix_error();
+    }
+
+    if (FIPS_mode()) {
+        PyErr_SetString(PyExc_ValueError, "getrandom is not FIPS compliant");
+        return NULL;
     }
 
     bytes = PyBytes_FromStringAndSize(NULL, size);
