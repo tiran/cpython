@@ -3299,9 +3299,6 @@ set_verify_flags(PySSLContext *self, PyObject *arg, void *c)
 }
 
 /* Getter and setter for protocol version */
-#if defined(SSL_CTRL_GET_MAX_PROTO_VERSION)
-
-
 static int
 set_min_max_proto_version(PySSLContext *self, PyObject *arg, int what)
 {
@@ -3396,7 +3393,6 @@ set_maximum_version(PySSLContext *self, PyObject *arg, void *c)
 {
     return set_min_max_proto_version(self, arg, 1);
 }
-#endif /* SSL_CTRL_GET_MAX_PROTO_VERSION */
 
 #if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
 static PyObject *
@@ -4436,12 +4432,10 @@ static PyGetSetDef context_getsetlist[] = {
                        (setter) set_check_hostname, NULL},
     {"_host_flags", (getter) get_host_flags,
                     (setter) set_host_flags, NULL},
-#if SSL_CTRL_GET_MAX_PROTO_VERSION
     {"minimum_version", (getter) get_minimum_version,
                         (setter) set_minimum_version, NULL},
     {"maximum_version", (getter) get_maximum_version,
                         (setter) set_maximum_version, NULL},
-#endif
 #ifdef HAVE_OPENSSL_KEYLOG
     {"keylog_filename", (getter) _PySSLContext_get_keylog_filename,
                         (setter) _PySSLContext_set_keylog_filename, NULL},
