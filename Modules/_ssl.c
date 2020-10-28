@@ -2883,9 +2883,6 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
     SSL_CTX *ctx = NULL;
     X509_VERIFY_PARAM *params;
     int result;
-#if defined(SSL_MODE_RELEASE_BUFFERS)
-    unsigned long libver;
-#endif
 
     PySSL_BEGIN_ALLOW_THREADS
     switch(proto_version) {
@@ -3013,20 +3010,9 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
         return NULL;
     }
 
-#if defined(SSL_MODE_RELEASE_BUFFERS)
     /* Set SSL_MODE_RELEASE_BUFFERS. This potentially greatly reduces memory
-       usage for no cost at all. However, don't do this for OpenSSL versions
-       between 1.0.1 and 1.0.1h or 1.0.0 and 1.0.0m, which are affected by CVE
-       2014-0198. I can't find exactly which beta fixed this CVE, so be
-       conservative and assume it wasn't fixed until release. We do this check
-       at runtime to avoid problems from the dynamic linker.
-       See #25672 for more on this. */
-    libver = OpenSSL_version_num();
-    if (!(libver >= 0x10001000UL && libver < 0x1000108fUL) &&
-        !(libver >= 0x10000000UL && libver < 0x100000dfUL)) {
-        SSL_CTX_set_mode(self->ctx, SSL_MODE_RELEASE_BUFFERS);
-    }
-#endif
+       usage for no cost at all. */
+    SSL_CTX_set_mode(self->ctx, SSL_MODE_RELEASE_BUFFERS);
 
 #define SID_CTX "Python"
     SSL_CTX_set_session_id_context(self->ctx, (const unsigned char *) SID_CTX,
