@@ -139,29 +139,6 @@ _ssl__SSLSocket_version(PySSLSocket *self, PyObject *Py_UNUSED(ignored))
     return _ssl__SSLSocket_version_impl(self);
 }
 
-#if (HAVE_NPN)
-
-PyDoc_STRVAR(_ssl__SSLSocket_selected_npn_protocol__doc__,
-"selected_npn_protocol($self, /)\n"
-"--\n"
-"\n");
-
-#define _SSL__SSLSOCKET_SELECTED_NPN_PROTOCOL_METHODDEF    \
-    {"selected_npn_protocol", (PyCFunction)_ssl__SSLSocket_selected_npn_protocol, METH_NOARGS, _ssl__SSLSocket_selected_npn_protocol__doc__},
-
-static PyObject *
-_ssl__SSLSocket_selected_npn_protocol_impl(PySSLSocket *self);
-
-static PyObject *
-_ssl__SSLSocket_selected_npn_protocol(PySSLSocket *self, PyObject *Py_UNUSED(ignored))
-{
-    return _ssl__SSLSocket_selected_npn_protocol_impl(self);
-}
-
-#endif /* (HAVE_NPN) */
-
-#if (HAVE_ALPN)
-
 PyDoc_STRVAR(_ssl__SSLSocket_selected_alpn_protocol__doc__,
 "selected_alpn_protocol($self, /)\n"
 "--\n"
@@ -178,8 +155,6 @@ _ssl__SSLSocket_selected_alpn_protocol(PySSLSocket *self, PyObject *Py_UNUSED(ig
 {
     return _ssl__SSLSocket_selected_alpn_protocol_impl(self);
 }
-
-#endif /* (HAVE_ALPN) */
 
 PyDoc_STRVAR(_ssl__SSLSocket_compression__doc__,
 "compression($self, /)\n"
@@ -472,42 +447,6 @@ _ssl__SSLContext_get_ciphers(PySSLContext *self, PyObject *Py_UNUSED(ignored))
 }
 
 #endif /* (OPENSSL_VERSION_NUMBER >= 0x10002000UL) */
-
-PyDoc_STRVAR(_ssl__SSLContext__set_npn_protocols__doc__,
-"_set_npn_protocols($self, protos, /)\n"
-"--\n"
-"\n");
-
-#define _SSL__SSLCONTEXT__SET_NPN_PROTOCOLS_METHODDEF    \
-    {"_set_npn_protocols", (PyCFunction)_ssl__SSLContext__set_npn_protocols, METH_O, _ssl__SSLContext__set_npn_protocols__doc__},
-
-static PyObject *
-_ssl__SSLContext__set_npn_protocols_impl(PySSLContext *self,
-                                         Py_buffer *protos);
-
-static PyObject *
-_ssl__SSLContext__set_npn_protocols(PySSLContext *self, PyObject *arg)
-{
-    PyObject *return_value = NULL;
-    Py_buffer protos = {NULL, NULL};
-
-    if (PyObject_GetBuffer(arg, &protos, PyBUF_SIMPLE) != 0) {
-        goto exit;
-    }
-    if (!PyBuffer_IsContiguous(&protos, 'C')) {
-        _PyArg_BadArgument("_set_npn_protocols", "argument", "contiguous buffer", arg);
-        goto exit;
-    }
-    return_value = _ssl__SSLContext__set_npn_protocols_impl(self, &protos);
-
-exit:
-    /* Cleanup for protos */
-    if (protos.obj) {
-       PyBuffer_Release(&protos);
-    }
-
-    return return_value;
-}
 
 PyDoc_STRVAR(_ssl__SSLContext__set_alpn_protocols__doc__,
 "_set_alpn_protocols($self, protos, /)\n"
@@ -1420,14 +1359,6 @@ exit:
 
 #endif /* defined(_MSC_VER) */
 
-#ifndef _SSL__SSLSOCKET_SELECTED_NPN_PROTOCOL_METHODDEF
-    #define _SSL__SSLSOCKET_SELECTED_NPN_PROTOCOL_METHODDEF
-#endif /* !defined(_SSL__SSLSOCKET_SELECTED_NPN_PROTOCOL_METHODDEF) */
-
-#ifndef _SSL__SSLSOCKET_SELECTED_ALPN_PROTOCOL_METHODDEF
-    #define _SSL__SSLSOCKET_SELECTED_ALPN_PROTOCOL_METHODDEF
-#endif /* !defined(_SSL__SSLSOCKET_SELECTED_ALPN_PROTOCOL_METHODDEF) */
-
 #ifndef _SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF
     #define _SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF
 #endif /* !defined(_SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF) */
@@ -1447,4 +1378,4 @@ exit:
 #ifndef _SSL_ENUM_CRLS_METHODDEF
     #define _SSL_ENUM_CRLS_METHODDEF
 #endif /* !defined(_SSL_ENUM_CRLS_METHODDEF) */
-/*[clinic end generated code: output=d4e4f9cdd08819f4 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=1b48a0a8f56cde43 input=a9049054013a1b77]*/

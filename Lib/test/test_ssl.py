@@ -4045,7 +4045,6 @@ class ThreadedTests(unittest.TestCase):
                                    sni_name=hostname)
         self.assertIs(stats['client_alpn_protocol'], None)
 
-    @unittest.skipUnless(ssl.HAS_ALPN, "ALPN support required")
     def test_selected_alpn_protocol_if_server_uses_alpn(self):
         # selected_alpn_protocol() is None unless ALPN is used by the client.
         client_context, server_context, hostname = testing_context()
@@ -4055,7 +4054,6 @@ class ThreadedTests(unittest.TestCase):
                                    sni_name=hostname)
         self.assertIs(stats['client_alpn_protocol'], None)
 
-    @unittest.skipUnless(ssl.HAS_ALPN, "ALPN support needed for this test")
     def test_alpn_protocols(self):
         server_protocols = ['foo', 'bar', 'milkshake']
         protocol_tests = [
@@ -4103,31 +4101,8 @@ class ThreadedTests(unittest.TestCase):
                                    sni_name=hostname)
         self.assertIs(stats['client_npn_protocol'], None)
 
-    @unittest.skipUnless(ssl.HAS_NPN, "NPN support needed for this test")
     def test_npn_protocols(self):
-        server_protocols = ['http/1.1', 'spdy/2']
-        protocol_tests = [
-            (['http/1.1', 'spdy/2'], 'http/1.1'),
-            (['spdy/2', 'http/1.1'], 'http/1.1'),
-            (['spdy/2', 'test'], 'spdy/2'),
-            (['abc', 'def'], 'abc')
-        ]
-        for client_protocols, expected in protocol_tests:
-            client_context, server_context, hostname = testing_context()
-            server_context.set_npn_protocols(server_protocols)
-            client_context.set_npn_protocols(client_protocols)
-            stats = server_params_test(client_context, server_context,
-                                       chatty=True, connectionchatty=True,
-                                       sni_name=hostname)
-            msg = "failed trying %s (s) and %s (c).\n" \
-                  "was expecting %s, but got %%s from the %%s" \
-                      % (str(server_protocols), str(client_protocols),
-                         str(expected))
-            client_result = stats['client_npn_protocol']
-            self.assertEqual(client_result, expected, msg % (client_result, "client"))
-            server_result = stats['server_npn_protocols'][-1] \
-                if len(stats['server_npn_protocols']) else 'nothing'
-            self.assertEqual(server_result, expected, msg % (server_result, "server"))
+        assert not ssl.HAS_NPN
 
     def sni_contexts(self):
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

@@ -63,16 +63,6 @@ static PySocketModule_APIObject PySocketModule;
 #include "openssl/bio.h"
 #include "openssl/dh.h"
 
-#ifndef HAVE_X509_VERIFY_PARAM_SET1_HOST
-#  ifdef LIBRESSL_VERSION_NUMBER
-#    error "LibreSSL is missing X509_VERIFY_PARAM_set1_host(), see https://github.com/libressl-portable/portable/issues/381"
-#  elif OPENSSL_VERSION_NUMBER > 0x1000200fL
-#    define HAVE_X509_VERIFY_PARAM_SET1_HOST
-#  else
-#    error "libssl is too old and does not support X509_VERIFY_PARAM_set1_host()"
-#  endif
-#endif
-
 #ifndef OPENSSL_THREADS
 #  error "OPENSSL_THREADS is not defined, Python requires thread-safe OpenSSL"
 #endif
@@ -157,43 +147,12 @@ static void _PySSLFixErrno(void) {
 #define OPENSSL_NO_TLS1_2_METHOD 1
 #endif
 
-#endif /* >= 1.1.0 compcat */
+#endif /* >= 1.1.0 compat */
 #endif /* OPENSSL_API_COMPAT */
 
 /* LibreSSL 2.7.0 provides necessary OpenSSL 1.1.0 APIs */
 #if defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070000fL
 #  define PY_OPENSSL_1_1_API 1
-#endif
-
-/* SNI support (client- and server-side) appeared in OpenSSL 1.0.0 and 0.9.8f
- * This includes the SSL_set_SSL_CTX() function.
- */
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-# define HAVE_SNI 1
-#else
-# define HAVE_SNI 0
-#endif
-
-#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-# define HAVE_ALPN 1
-#else
-# define HAVE_ALPN 0
-#endif
-
-/* We cannot rely on OPENSSL_NO_NEXTPROTONEG because LibreSSL 2.6.1 dropped
- * NPN support but did not set OPENSSL_NO_NEXTPROTONEG for compatibility
- * reasons. The check for TLSEXT_TYPE_next_proto_neg works with
- * OpenSSL 1.0.1+ and LibreSSL.
- * OpenSSL 1.1.1-pre1 dropped NPN but still has TLSEXT_TYPE_next_proto_neg.
- */
-#ifdef OPENSSL_NO_NEXTPROTONEG
-# define HAVE_NPN 0
-#elif (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
-# define HAVE_NPN 0
-#elif defined(TLSEXT_TYPE_next_proto_neg)
-# define HAVE_NPN 1
-#else
-# define HAVE_NPN 0
 #endif
 
 #if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
@@ -421,17 +380,9 @@ static unsigned int _ssl_locks_count = 0;
 typedef struct {
     PyObject_HEAD
     SSL_CTX *ctx;
-#if HAVE_NPN
-    unsigned char *npn_protocols;
-    int npn_protocols_len;
-#endif
-#if HAVE_ALPN
     unsigned char *alpn_protocols;
     unsigned int alpn_protocols_len;
-#endif
-#ifndef OPENSSL_NO_TLSEXT
     PyObject *set_sni_cb;
-#endif
     int check_hostname;
     /* OpenSSL has no API to get hostflags from X509_VERIFY_PARAM* struct.
      * We have to maintain our own copy. OpenSSL's hostflags default to 0.
@@ -2119,28 +2070,6 @@ _ssl__SSLSocket_version_impl(PySSLSocket *self)
     return PyUnicode_FromString(version);
 }
 
-#if HAVE_NPN
-/*[clinic input]
-_ssl._SSLSocket.selected_npn_protocol
-[clinic start generated code]*/
-
-static PyObject *
-_ssl__SSLSocket_selected_npn_protocol_impl(PySSLSocket *self)
-/*[clinic end generated code: output=b91d494cd207ecf6 input=c28fde139204b826]*/
-{
-    const unsigned char *out;
-    unsigned int outlen;
-
-    SSL_get0_next_proto_negotiated(self->ssl,
-                                   &out, &outlen);
-
-    if (out == NULL)
-        Py_RETURN_NONE;
-    return PyUnicode_FromStringAndSize((char *)out, outlen);
-}
-#endif
-
-#if HAVE_ALPN
 /*[clinic input]
 _ssl._SSLSocket.selected_alpn_protocol
 [clinic start generated code]*/
@@ -2158,7 +2087,6 @@ _ssl__SSLSocket_selected_alpn_protocol_impl(PySSLSocket *self)
         Py_RETURN_NONE;
     return PyUnicode_FromStringAndSize((char *)out, outlen);
 }
-#endif
 
 /*[clinic input]
 _ssl._SSLSocket.compression
@@ -2195,15 +2123,9 @@ static int PySSL_set_context(PySSLSocket *self, PyObject *value,
                                    void *closure) {
 
     if (PyObject_TypeCheck(value, &PySSLContext_Type)) {
-#if !HAVE_SNI
-        PyErr_SetString(PyExc_NotImplementedError, "setting a socket's "
-                        "context is not supported by your OpenSSL library");
-        return -1;
-#else
         Py_INCREF(value);
         Py_SETREF(self->ctx, (PySSLContext *)value);
         SSL_set_SSL_CTX(self->ssl, self->ctx->ctx);
-#endif
     } else {
         PyErr_SetString(PyExc_TypeError, "The value must be a SSLContext");
         return -1;
@@ -3000,7 +2922,6 @@ static PyMethodDef PySSLMethods[] = {
     _SSL__SSLSOCKET_CIPHER_METHODDEF
     _SSL__SSLSOCKET_SHARED_CIPHERS_METHODDEF
     _SSL__SSLSOCKET_VERSION_METHODDEF
-    _SSL__SSLSOCKET_SELECTED_NPN_PROTOCOL_METHODDEF
     _SSL__SSLSOCKET_SELECTED_ALPN_PROTOCOL_METHODDEF
     _SSL__SSLSOCKET_COMPRESSION_METHODDEF
     _SSL__SSLSOCKET_SHUTDOWN_METHODDEF
@@ -3165,15 +3086,8 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
     self->keylog_filename = NULL;
     self->keylog_bio = NULL;
 #endif
-#if HAVE_NPN
-    self->npn_protocols = NULL;
-#endif
-#if HAVE_ALPN
     self->alpn_protocols = NULL;
-#endif
-#ifndef OPENSSL_NO_TLSEXT
     self->set_sni_cb = NULL;
-#endif
     /* Don't check host name by default */
     if (proto_version == PY_SSL_VERSION_TLS_CLIENT) {
         self->check_hostname = 1;
@@ -3287,9 +3201,7 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
 static int
 context_traverse(PySSLContext *self, visitproc visit, void *arg)
 {
-#ifndef OPENSSL_NO_TLSEXT
     Py_VISIT(self->set_sni_cb);
-#endif
     Py_VISIT(self->msg_cb);
     return 0;
 }
@@ -3297,9 +3209,7 @@ context_traverse(PySSLContext *self, visitproc visit, void *arg)
 static int
 context_clear(PySSLContext *self)
 {
-#ifndef OPENSSL_NO_TLSEXT
     Py_CLEAR(self->set_sni_cb);
-#endif
     Py_CLEAR(self->msg_cb);
 #ifdef HAVE_OPENSSL_KEYLOG
     Py_CLEAR(self->keylog_filename);
@@ -3320,12 +3230,7 @@ context_dealloc(PySSLContext *self)
     PyObject_GC_UnTrack(self);
     context_clear(self);
     SSL_CTX_free(self->ctx);
-#if HAVE_NPN
-    PyMem_FREE(self->npn_protocols);
-#endif
-#if HAVE_ALPN
     PyMem_FREE(self->alpn_protocols);
-#endif
     Py_TYPE(self)->tp_free(self);
 }
 
@@ -3398,7 +3303,6 @@ _ssl__SSLContext_get_ciphers_impl(PySSLContext *self)
 #endif
 
 
-#if HAVE_NPN || HAVE_ALPN
 static int
 do_protocol_selection(int alpn, unsigned char **out, unsigned char *outlen,
                       const unsigned char *server_protocols, unsigned int server_protocols_len,
@@ -3422,77 +3326,7 @@ do_protocol_selection(int alpn, unsigned char **out, unsigned char *outlen,
 
     return SSL_TLSEXT_ERR_OK;
 }
-#endif
 
-#if HAVE_NPN
-/* this callback gets passed to SSL_CTX_set_next_protos_advertise_cb */
-static int
-_advertiseNPN_cb(SSL *s,
-                 const unsigned char **data, unsigned int *len,
-                 void *args)
-{
-    PySSLContext *ssl_ctx = (PySSLContext *) args;
-
-    if (ssl_ctx->npn_protocols == NULL) {
-        *data = (unsigned char *)"";
-        *len = 0;
-    } else {
-        *data = ssl_ctx->npn_protocols;
-        *len = ssl_ctx->npn_protocols_len;
-    }
-
-    return SSL_TLSEXT_ERR_OK;
-}
-/* this callback gets passed to SSL_CTX_set_next_proto_select_cb */
-static int
-_selectNPN_cb(SSL *s,
-              unsigned char **out, unsigned char *outlen,
-              const unsigned char *server, unsigned int server_len,
-              void *args)
-{
-    PySSLContext *ctx = (PySSLContext *)args;
-    return do_protocol_selection(0, out, outlen, server, server_len,
-                                 ctx->npn_protocols, ctx->npn_protocols_len);
-}
-#endif
-
-/*[clinic input]
-_ssl._SSLContext._set_npn_protocols
-    protos: Py_buffer
-    /
-[clinic start generated code]*/
-
-static PyObject *
-_ssl__SSLContext__set_npn_protocols_impl(PySSLContext *self,
-                                         Py_buffer *protos)
-/*[clinic end generated code: output=72b002c3324390c6 input=319fcb66abf95bd7]*/
-{
-#if HAVE_NPN
-    PyMem_Free(self->npn_protocols);
-    self->npn_protocols = PyMem_Malloc(protos->len);
-    if (self->npn_protocols == NULL)
-        return PyErr_NoMemory();
-    memcpy(self->npn_protocols, protos->buf, protos->len);
-    self->npn_protocols_len = (int) protos->len;
-
-    /* set both server and client callbacks, because the context can
-     * be used to create both types of sockets */
-    SSL_CTX_set_next_protos_advertised_cb(self->ctx,
-                                          _advertiseNPN_cb,
-                                          self);
-    SSL_CTX_set_next_proto_select_cb(self->ctx,
-                                     _selectNPN_cb,
-                                     self);
-
-    Py_RETURN_NONE;
-#else
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "The NPN extension requires OpenSSL 1.0.1 or later.");
-    return NULL;
-#endif
-}
-
-#if HAVE_ALPN
 static int
 _selectALPN_cb(SSL *s,
               const unsigned char **out, unsigned char *outlen,
@@ -3504,7 +3338,6 @@ _selectALPN_cb(SSL *s,
                                  ctx->alpn_protocols, ctx->alpn_protocols_len,
                                  client_protocols, client_protocols_len);
 }
-#endif
 
 /*[clinic input]
 _ssl._SSLContext._set_alpn_protocols
@@ -3517,7 +3350,6 @@ _ssl__SSLContext__set_alpn_protocols_impl(PySSLContext *self,
                                           Py_buffer *protos)
 /*[clinic end generated code: output=87599a7f76651a9b input=9bba964595d519be]*/
 {
-#if HAVE_ALPN
     if ((size_t)protos->len > UINT_MAX) {
         PyErr_Format(PyExc_OverflowError,
             "protocols longer than %u bytes", UINT_MAX);
@@ -3536,11 +3368,6 @@ _ssl__SSLContext__set_alpn_protocols_impl(PySSLContext *self,
     SSL_CTX_set_alpn_select_cb(self->ctx, _selectALPN_cb, self);
 
     Py_RETURN_NONE;
-#else
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "The ALPN extension requires OpenSSL 1.0.2 or later.");
-    return NULL;
-#endif
 }
 
 static PyObject *
@@ -4497,7 +4324,6 @@ _ssl__SSLContext_set_ecdh_curve(PySSLContext *self, PyObject *name)
 }
 #endif
 
-#if HAVE_SNI && !defined(OPENSSL_NO_TLSEXT)
 static int
 _servername_callback(SSL *s, int *al, void *args)
 {
@@ -4601,7 +4427,6 @@ error:
     PyGILState_Release(gstate);
     return ret;
 }
-#endif
 
 static PyObject *
 get_sni_callback(PySSLContext *self, void *c)
@@ -4622,7 +4447,6 @@ set_sni_callback(PySSLContext *self, PyObject *arg, void *c)
                         "sni_callback cannot be set on TLS_CLIENT context");
         return -1;
     }
-#if HAVE_SNI && !defined(OPENSSL_NO_TLSEXT)
     Py_CLEAR(self->set_sni_cb);
     if (arg == Py_None) {
         SSL_CTX_set_tlsext_servername_callback(self->ctx, NULL);
@@ -4640,13 +4464,6 @@ set_sni_callback(PySSLContext *self, PyObject *arg, void *c)
         SSL_CTX_set_tlsext_servername_arg(self->ctx, self);
     }
     return 0;
-#else
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "The TLS extension servername callback, "
-                    "SSL_CTX_set_tlsext_servername_callback, "
-                    "is not in the current OpenSSL library.");
-    return -1;
-#endif
 }
 
 PyDoc_STRVAR(PySSLContext_sni_callback_doc,
@@ -4816,7 +4633,6 @@ static struct PyMethodDef context_methods[] = {
     _SSL__SSLCONTEXT__WRAP_BIO_METHODDEF
     _SSL__SSLCONTEXT_SET_CIPHERS_METHODDEF
     _SSL__SSLCONTEXT__SET_ALPN_PROTOCOLS_METHODDEF
-    _SSL__SSLCONTEXT__SET_NPN_PROTOCOLS_METHODDEF
     _SSL__SSLCONTEXT_LOAD_CERT_CHAIN_METHODDEF
     _SSL__SSLCONTEXT_LOAD_DH_PARAMS_METHODDEF
     _SSL__SSLCONTEXT_LOAD_VERIFY_LOCATIONS_METHODDEF
@@ -6315,12 +6131,7 @@ PyInit__ssl(void)
         PyModule_AddObject((m), (key), bool_obj); \
     } while (0)
 
-#if HAVE_SNI
     addbool(m, "HAS_SNI", 1);
-#else
-    addbool(m, "HAS_SNI", 0);
-#endif
-
     addbool(m, "HAS_TLS_UNIQUE", 1);
 
 #ifndef OPENSSL_NO_ECDH
@@ -6329,17 +6140,8 @@ PyInit__ssl(void)
     addbool(m, "HAS_ECDH", 0);
 #endif
 
-#if HAVE_NPN
-    addbool(m, "HAS_NPN", 1);
-#else
     addbool(m, "HAS_NPN", 0);
-#endif
-
-#if HAVE_ALPN
     addbool(m, "HAS_ALPN", 1);
-#else
-    addbool(m, "HAS_ALPN", 0);
-#endif
 
 #if defined(SSL2_VERSION) && !defined(OPENSSL_NO_SSL2)
     addbool(m, "HAS_SSLv2", 1);
