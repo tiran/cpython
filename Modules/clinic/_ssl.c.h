@@ -768,8 +768,6 @@ _ssl__SSLContext_set_default_verify_paths(PySSLContext *self, PyObject *Py_UNUSE
     return _ssl__SSLContext_set_default_verify_paths_impl(self);
 }
 
-#if !defined(OPENSSL_NO_ECDH)
-
 PyDoc_STRVAR(_ssl__SSLContext_set_ecdh_curve__doc__,
 "set_ecdh_curve($self, name, /)\n"
 "--\n"
@@ -777,8 +775,6 @@ PyDoc_STRVAR(_ssl__SSLContext_set_ecdh_curve__doc__,
 
 #define _SSL__SSLCONTEXT_SET_ECDH_CURVE_METHODDEF    \
     {"set_ecdh_curve", (PyCFunction)_ssl__SSLContext_set_ecdh_curve, METH_O, _ssl__SSLContext_set_ecdh_curve__doc__},
-
-#endif /* !defined(OPENSSL_NO_ECDH) */
 
 PyDoc_STRVAR(_ssl__SSLContext_cert_store_stats__doc__,
 "cert_store_stats($self, /)\n"
@@ -1363,10 +1359,6 @@ exit:
     #define _SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF
 #endif /* !defined(_SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF) */
 
-#ifndef _SSL__SSLCONTEXT_SET_ECDH_CURVE_METHODDEF
-    #define _SSL__SSLCONTEXT_SET_ECDH_CURVE_METHODDEF
-#endif /* !defined(_SSL__SSLCONTEXT_SET_ECDH_CURVE_METHODDEF) */
-
 #ifndef _SSL_RAND_EGD_METHODDEF
     #define _SSL_RAND_EGD_METHODDEF
 #endif /* !defined(_SSL_RAND_EGD_METHODDEF) */
@@ -1378,4 +1370,4 @@ exit:
 #ifndef _SSL_ENUM_CRLS_METHODDEF
     #define _SSL_ENUM_CRLS_METHODDEF
 #endif /* !defined(_SSL_ENUM_CRLS_METHODDEF) */
-/*[clinic end generated code: output=1b48a0a8f56cde43 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=e821756b931deb2c input=a9049054013a1b77]*/

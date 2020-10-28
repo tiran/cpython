@@ -3160,23 +3160,6 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
     }
 #endif
 
-
-#if !defined(OPENSSL_NO_ECDH) && !defined(OPENSSL_VERSION_1_1)
-    /* Allow automatic ECDH curve selection (on OpenSSL 1.0.2+), or use
-       prime256v1 by default.  This is Apache mod_ssl's initialization
-       policy, so we should be safe. OpenSSL 1.1 has it enabled by default.
-     */
-#if defined(SSL_CTX_set_ecdh_auto)
-    SSL_CTX_set_ecdh_auto(self->ctx, 1);
-#else
-    {
-        EC_KEY *key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-        SSL_CTX_set_tmp_ecdh(self->ctx, key);
-        EC_KEY_free(key);
-    }
-#endif
-#endif
-
 #define SID_CTX "Python"
     SSL_CTX_set_session_id_context(self->ctx, (const unsigned char *) SID_CTX,
                                    sizeof(SID_CTX));
@@ -4287,7 +4270,6 @@ _ssl__SSLContext_set_default_verify_paths_impl(PySSLContext *self)
     Py_RETURN_NONE;
 }
 
-#ifndef OPENSSL_NO_ECDH
 /*[clinic input]
 _ssl._SSLContext.set_ecdh_curve
     name: object
@@ -4322,7 +4304,6 @@ _ssl__SSLContext_set_ecdh_curve(PySSLContext *self, PyObject *name)
     EC_KEY_free(key);
     Py_RETURN_NONE;
 }
-#endif
 
 static int
 _servername_callback(SSL *s, int *al, void *args)
@@ -6133,13 +6114,7 @@ PyInit__ssl(void)
 
     addbool(m, "HAS_SNI", 1);
     addbool(m, "HAS_TLS_UNIQUE", 1);
-
-#ifndef OPENSSL_NO_ECDH
     addbool(m, "HAS_ECDH", 1);
-#else
-    addbool(m, "HAS_ECDH", 0);
-#endif
-
     addbool(m, "HAS_NPN", 0);
     addbool(m, "HAS_ALPN", 1);
 
