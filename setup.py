@@ -545,16 +545,6 @@ class PyBuildExt(build_ext):
             print_three_column(failed)
             print()
 
-        if any('_ssl' in l
-               for l in (self.missing, self.failed, self.failed_on_import)):
-            print()
-            print("Could not build the ssl module!")
-            print("Python requires an OpenSSL 1.0.2 or 1.1 compatible "
-                  "libssl with X509_VERIFY_PARAM_set1_host().")
-            print("LibreSSL 2.6.4 and earlier do not provide the necessary "
-                  "APIs, https://github.com/libressl-portable/portable/issues/381")
-            print()
-
     def build_extension(self, ext):
 
         if ext.name == '_ctypes':
@@ -2367,24 +2357,13 @@ class PyBuildExt(build_ext):
             self.missing.extend(['_ssl', '_hashlib'])
             return None, None
 
-        # OpenSSL 1.0.2 uses Kerberos for KRB5 ciphers
-        krb5_h = find_file(
-            'krb5.h', self.inc_dirs,
-            ['/usr/kerberos/include']
+        self.add(Extension(
+            '_ssl', ['_ssl.c'],
+            include_dirs=openssl_includes,
+            library_dirs=openssl_libdirs,
+            libraries=openssl_libs,
+            depends=['socketmodule.h', '_ssl/debughelpers.c'])
         )
-        if krb5_h:
-            ssl_incs.extend(krb5_h)
-
-        if config_vars.get("HAVE_X509_VERIFY_PARAM_SET1_HOST"):
-            self.add(Extension(
-                '_ssl', ['_ssl.c'],
-                include_dirs=openssl_includes,
-                library_dirs=openssl_libdirs,
-                libraries=openssl_libs,
-                depends=['socketmodule.h', '_ssl/debughelpers.c'])
-            )
-        else:
-            self.missing.append('_ssl')
 
         self.add(Extension('_hashlib', ['_hashopenssl.c'],
                            depends=['hashlib.h'],
