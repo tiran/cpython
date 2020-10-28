@@ -427,8 +427,6 @@ exit:
     return return_value;
 }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10002000UL)
-
 PyDoc_STRVAR(_ssl__SSLContext_get_ciphers__doc__,
 "get_ciphers($self, /)\n"
 "--\n"
@@ -445,8 +443,6 @@ _ssl__SSLContext_get_ciphers(PySSLContext *self, PyObject *Py_UNUSED(ignored))
 {
     return _ssl__SSLContext_get_ciphers_impl(self);
 }
-
-#endif /* (OPENSSL_VERSION_NUMBER >= 0x10002000UL) */
 
 PyDoc_STRVAR(_ssl__SSLContext__set_alpn_protocols__doc__,
 "_set_alpn_protocols($self, protos, /)\n"
@@ -1355,10 +1351,6 @@ exit:
 
 #endif /* defined(_MSC_VER) */
 
-#ifndef _SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF
-    #define _SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF
-#endif /* !defined(_SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF) */
-
 #ifndef _SSL_RAND_EGD_METHODDEF
     #define _SSL_RAND_EGD_METHODDEF
 #endif /* !defined(_SSL_RAND_EGD_METHODDEF) */
@@ -1370,4 +1362,4 @@ exit:
 #ifndef _SSL_ENUM_CRLS_METHODDEF
     #define _SSL_ENUM_CRLS_METHODDEF
 #endif /* !defined(_SSL_ENUM_CRLS_METHODDEF) */
-/*[clinic end generated code: output=e821756b931deb2c input=a9049054013a1b77]*/
+/*[clinic end generated code: output=4ff070bcc6752185 input=a9049054013a1b77]*/

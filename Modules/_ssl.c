@@ -3092,7 +3092,6 @@ _ssl__SSLContext_set_ciphers_impl(PySSLContext *self, const char *cipherlist)
     Py_RETURN_NONE;
 }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10002000UL
 /*[clinic input]
 _ssl._SSLContext.get_ciphers
 [clinic start generated code]*/
@@ -3135,7 +3134,6 @@ _ssl__SSLContext_get_ciphers_impl(PySSLContext *self)
     return result;
 
 }
-#endif
 
 
 static int
