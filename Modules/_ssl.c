@@ -128,7 +128,6 @@ static void _PySSLFixErrno(void) {
 #include "_ssl_data.h"
 
 #if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(LIBRESSL_VERSION_NUMBER)
-#  define OPENSSL_VERSION_1_1 1
 #  define PY_OPENSSL_1_1_API 1
 #endif
 
@@ -163,14 +162,8 @@ static void _PySSLFixErrno(void) {
 #define INVALID_SOCKET (-1)
 #endif
 
-/* OpenSSL 1.0.2 and LibreSSL needs extra code for locking */
-#ifndef OPENSSL_VERSION_1_1
-#define HAVE_OPENSSL_CRYPTO_LOCK
-#endif
-
-#if defined(OPENSSL_VERSION_1_1) && !defined(OPENSSL_NO_SSL2)
+/* OpenSSL 1.1 does not have SSL 2.0 */
 #define OPENSSL_NO_SSL2
-#endif
 
 #ifndef PY_OPENSSL_1_1_API
 /* OpenSSL 1.1 API shims for OpenSSL < 1.1.0 and LibreSSL < 2.7.0 */
@@ -1941,7 +1934,6 @@ cipher_to_tuple(const SSL_CIPHER *cipher)
     return NULL;
 }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10002000UL
 static PyObject *
 cipher_to_dict(const SSL_CIPHER *cipher)
 {
@@ -1950,10 +1942,8 @@ cipher_to_dict(const SSL_CIPHER *cipher)
     unsigned long cipher_id;
     int alg_bits, strength_bits, len;
     char buf[512] = {0};
-#if OPENSSL_VERSION_1_1
     int aead, nid;
     const char *skcipher = NULL, *digest = NULL, *kx = NULL, *auth = NULL;
-#endif
 
     /* can be NULL */
     cipher_name = SSL_CIPHER_get_name(cipher);
@@ -1966,7 +1956,6 @@ cipher_to_dict(const SSL_CIPHER *cipher)
         buf[len-1] = '\0';
     strength_bits = SSL_CIPHER_get_bits(cipher, &alg_bits);
 
-#if OPENSSL_VERSION_1_1
     aead = SSL_CIPHER_is_aead(cipher);
     nid = SSL_CIPHER_get_cipher_nid(cipher);
     skcipher = nid != NID_undef ? OBJ_nid2ln(nid) : NULL;
@@ -1976,13 +1965,10 @@ cipher_to_dict(const SSL_CIPHER *cipher)
     kx = nid != NID_undef ? OBJ_nid2ln(nid) : NULL;
     nid = SSL_CIPHER_get_auth_nid(cipher);
     auth = nid != NID_undef ? OBJ_nid2ln(nid) : NULL;
-#endif
 
     return Py_BuildValue(
         "{sksssssssisi"
-#if OPENSSL_VERSION_1_1
         "sOssssssss"
-#endif
         "}",
         "id", cipher_id,
         "name", cipher_name,
@@ -1990,16 +1976,13 @@ cipher_to_dict(const SSL_CIPHER *cipher)
         "description", buf,
         "strength_bits", strength_bits,
         "alg_bits", alg_bits
-#if OPENSSL_VERSION_1_1
         ,"aead", aead ? Py_True : Py_False,
         "symmetric", skcipher,
         "digest", digest,
         "kea", kx,
         "auth", auth
-#endif
        );
 }
-#endif
 
 /*[clinic input]
 _ssl._SSLSocket.shared_ciphers
@@ -2750,8 +2733,6 @@ _ssl__SSLSocket_verify_client_post_handshake_impl(PySSLSocket *self)
 #endif
 }
 
-#ifdef OPENSSL_VERSION_1_1
-
 static SSL_SESSION*
 _ssl_session_dup(SSL_SESSION *session) {
     SSL_SESSION *newsession = NULL;
@@ -2792,7 +2773,6 @@ _ssl_session_dup(SSL_SESSION *session) {
     }
     return NULL;
 }
-#endif
 
 static PyObject *
 PySSL_get_session(PySSLSocket *self, void *closure) {
@@ -2801,7 +2781,6 @@ PySSL_get_session(PySSLSocket *self, void *closure) {
     PySSLSession *pysess;
     SSL_SESSION *session;
 
-#ifdef OPENSSL_VERSION_1_1
     /* duplicate session as workaround for session bug in OpenSSL 1.1.0,
      * https://github.com/openssl/openssl/issues/1550 */
     session = SSL_get0_session(self->ssl);  /* borrowed reference */
@@ -2811,12 +2790,6 @@ PySSL_get_session(PySSLSocket *self, void *closure) {
     if ((session = _ssl_session_dup(session)) == NULL) {
         return NULL;
     }
-#else
-    session = SSL_get1_session(self->ssl);
-    if (session == NULL) {
-        Py_RETURN_NONE;
-    }
-#endif
     pysess = PyObject_GC_New(PySSLSession, &PySSLSession_Type);
     if (pysess == NULL) {
         SSL_SESSION_free(session);
@@ -2835,9 +2808,7 @@ static int PySSL_set_session(PySSLSocket *self, PyObject *value,
                              void *closure)
                               {
     PySSLSession *pysess;
-#ifdef OPENSSL_VERSION_1_1
     SSL_SESSION *session;
-#endif
     int result;
 
     if (!PySSLSession_Check(value)) {
@@ -2861,7 +2832,6 @@ static int PySSL_set_session(PySSLSocket *self, PyObject *value,
                         "Cannot set session after handshake.");
         return -1;
     }
-#ifdef OPENSSL_VERSION_1_1
     /* duplicate session */
     if ((session = _ssl_session_dup(pysess->session)) == NULL) {
         return -1;
@@ -2869,9 +2839,6 @@ static int PySSL_set_session(PySSLSocket *self, PyObject *value,
     result = SSL_set_session(self->ssl, session);
     /* free duplicate, SSL_set_session() bumps ref count */
     SSL_SESSION_free(session);
-#else
-    result = SSL_set_session(self->ssl, pysess->session);
-#endif
     if (result == 0) {
         _setSSLError(NULL, 0, __FILE__, __LINE__);
         return -1;
@@ -5842,20 +5809,12 @@ PyInit__ssl(void)
         return NULL;
     PySocketModule = *socket_api;
 
-#ifndef OPENSSL_VERSION_1_1
-    /* Load all algorithms and initialize cpuid */
-    OPENSSL_add_all_algorithms_noconf();
-    /* Init OpenSSL */
-    SSL_load_error_strings();
-    SSL_library_init();
-#endif
-
 #ifdef HAVE_OPENSSL_CRYPTO_LOCK
     /* note that this will start threading if not already started */
     if (!_setup_ssl_threads()) {
         return NULL;
     }
-#elif OPENSSL_VERSION_1_1
+#else
     /* OpenSSL 1.1.0 builtin thread support is enabled */
     _ssl_locks_count++;
 #endif
