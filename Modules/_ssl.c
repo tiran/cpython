@@ -3020,11 +3020,9 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
 #undef SID_CTX
 
     params = SSL_CTX_get0_param(self->ctx);
-#ifdef X509_V_FLAG_TRUSTED_FIRST
     /* Improve trust chain building when cross-signed intermediate
        certificates are present. See https://bugs.python.org/issue23476. */
     X509_VERIFY_PARAM_set_flags(params, X509_V_FLAG_TRUSTED_FIRST);
-#endif
     X509_VERIFY_PARAM_set_hostflags(params, self->hostflags);
 
 #ifdef TLS1_3_VERSION
@@ -5685,10 +5683,8 @@ PyInit__ssl(void)
                             X509_V_FLAG_CRL_CHECK|X509_V_FLAG_CRL_CHECK_ALL);
     PyModule_AddIntConstant(m, "VERIFY_X509_STRICT",
                             X509_V_FLAG_X509_STRICT);
-#ifdef X509_V_FLAG_TRUSTED_FIRST
     PyModule_AddIntConstant(m, "VERIFY_X509_TRUSTED_FIRST",
                             X509_V_FLAG_TRUSTED_FIRST);
-#endif
 
     /* Alert Descriptions from ssl.h */
     /* note RESERVED constants no longer intended for use have been removed */
