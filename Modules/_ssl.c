@@ -270,14 +270,6 @@ enum py_proto_version {
 
 #define X509_NAME_MAXLEN 256
 
-/* SSL_CTX_clear_options() and SSL_clear_options() were first added in
- * OpenSSL 0.9.8m but do not appear in some 0.9.9-dev versions such the
- * 0.9.9 from "May 2008" that NetBSD 5.0 uses. */
-#if OPENSSL_VERSION_NUMBER >= 0x009080dfL && OPENSSL_VERSION_NUMBER != 0x00909000L
-# define HAVE_SSL_CTX_CLEAR_OPTIONS
-#else
-# undef HAVE_SSL_CTX_CLEAR_OPTIONS
-#endif
 
 /* In case of 'tls-unique' it will be 12 bytes for TLS, 36 bytes for
  * older SSL, but let's be safe */
@@ -3464,13 +3456,7 @@ set_options(PySSLContext *self, PyObject *arg, void *c)
     clear = opts & ~new_opts;
     set = ~opts & new_opts;
     if (clear) {
-#ifdef HAVE_SSL_CTX_CLEAR_OPTIONS
         SSL_CTX_clear_options(self->ctx, clear);
-#else
-        PyErr_SetString(PyExc_ValueError,
-                        "can't clear options before OpenSSL 0.9.8m");
-        return -1;
-#endif
     }
     if (set)
         SSL_CTX_set_options(self->ctx, set);
