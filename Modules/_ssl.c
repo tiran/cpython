@@ -127,10 +127,6 @@ static void _PySSLFixErrno(void) {
 /* Include generated data (error codes) */
 #include "_ssl_data.h"
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(LIBRESSL_VERSION_NUMBER)
-#  define PY_OPENSSL_1_1_API 1
-#endif
-
 /* OpenSSL API compat */
 #ifdef OPENSSL_API_COMPAT
 #if OPENSSL_API_COMPAT >= 0x10100000L
@@ -149,12 +145,7 @@ static void _PySSLFixErrno(void) {
 #endif /* >= 1.1.0 compat */
 #endif /* OPENSSL_API_COMPAT */
 
-/* LibreSSL 2.7.0 provides necessary OpenSSL 1.1.0 APIs */
-#if defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070000fL
-#  define PY_OPENSSL_1_1_API 1
-#endif
-
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
 #define HAVE_OPENSSL_KEYLOG 1
 #endif
 
@@ -164,77 +155,6 @@ static void _PySSLFixErrno(void) {
 
 /* OpenSSL 1.1 does not have SSL 2.0 */
 #define OPENSSL_NO_SSL2
-
-#ifndef PY_OPENSSL_1_1_API
-/* OpenSSL 1.1 API shims for OpenSSL < 1.1.0 and LibreSSL < 2.7.0 */
-
-#define TLS_method SSLv23_method
-#define TLS_client_method SSLv23_client_method
-#define TLS_server_method SSLv23_server_method
-#define ASN1_STRING_get0_data ASN1_STRING_data
-#define X509_get0_notBefore X509_get_notBefore
-#define X509_get0_notAfter X509_get_notAfter
-#define OpenSSL_version_num SSLeay
-#define OpenSSL_version SSLeay_version
-#define OPENSSL_VERSION SSLEAY_VERSION
-
-static int X509_NAME_ENTRY_set(const X509_NAME_ENTRY *ne)
-{
-    return ne->set;
-}
-
-#ifndef OPENSSL_NO_COMP
-/* LCOV_EXCL_START */
-static int COMP_get_type(const COMP_METHOD *meth)
-{
-    return meth->type;
-}
-/* LCOV_EXCL_STOP */
-#endif
-
-static pem_password_cb *SSL_CTX_get_default_passwd_cb(SSL_CTX *ctx)
-{
-    return ctx->default_passwd_callback;
-}
-
-static void *SSL_CTX_get_default_passwd_cb_userdata(SSL_CTX *ctx)
-{
-    return ctx->default_passwd_callback_userdata;
-}
-
-static int X509_OBJECT_get_type(X509_OBJECT *x)
-{
-    return x->type;
-}
-
-static X509 *X509_OBJECT_get0_X509(X509_OBJECT *x)
-{
-    return x->data.x509;
-}
-
-static int BIO_up_ref(BIO *b)
-{
-    CRYPTO_add(&b->references, 1, CRYPTO_LOCK_BIO);
-    return 1;
-}
-
-static STACK_OF(X509_OBJECT) *X509_STORE_get0_objects(X509_STORE *store) {
-    return store->objs;
-}
-
-static int
-SSL_SESSION_has_ticket(const SSL_SESSION *s)
-{
-    return (s->tlsext_ticklen > 0) ? 1 : 0;
-}
-
-static unsigned long
-SSL_SESSION_get_ticket_lifetime_hint(const SSL_SESSION *s)
-{
-    return s->tlsext_tick_lifetime_hint;
-}
-
-#endif /* OpenSSL < 1.1.0 or LibreSSL < 2.7.0 */
 
 /* Default cipher suites */
 #ifndef PY_SSL_DEFAULT_CIPHERS
@@ -5092,11 +5012,7 @@ PySSL_RAND(int len, int pseudo)
     if (bytes == NULL)
         return NULL;
     if (pseudo) {
-#ifdef PY_OPENSSL_1_1_API
         ok = RAND_bytes((unsigned char*)PyBytes_AS_STRING(bytes), len);
-#else
-        ok = RAND_pseudo_bytes((unsigned char*)PyBytes_AS_STRING(bytes), len);
-#endif
         if (ok == 0 || ok == 1)
             return Py_BuildValue("NO", bytes, ok == 1 ? Py_True : Py_False);
     }
