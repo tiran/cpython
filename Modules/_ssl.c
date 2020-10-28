@@ -22,9 +22,9 @@
 #define _PySSL_FIX_ERRNO
 
 #define PySSL_BEGIN_ALLOW_THREADS_S(save) \
-    do { if (_ssl_locks_count>0) { (save) = PyEval_SaveThread(); } } while (0)
+    do { (save) = PyEval_SaveThread(); } while(0)
 #define PySSL_END_ALLOW_THREADS_S(save) \
-    do { if (_ssl_locks_count>0) { PyEval_RestoreThread(save); } _PySSL_FIX_ERRNO; } while (0)
+    do { PyEval_RestoreThread(save); _PySSL_FIX_ERRNO; } while(0)
 #define PySSL_BEGIN_ALLOW_THREADS { \
             PyThreadState *_save = NULL;  \
             PySSL_BEGIN_ALLOW_THREADS_S(_save);
@@ -345,12 +345,6 @@ enum py_proto_version {
     #error "PY_PROTO_MAXIMUM_AVAILABLE not found"
 #endif
 };
-
-
-/* serves as a flag to see whether we've initialized the SSL thread support. */
-/* 0 means no, greater than 0 means yes */
-
-static unsigned int _ssl_locks_count = 0;
 
 /* SSL socket object */
 
@@ -5656,93 +5650,6 @@ static PyMethodDef PySSL_methods[] = {
     {NULL,                  NULL}            /* Sentinel */
 };
 
-
-#ifdef HAVE_OPENSSL_CRYPTO_LOCK
-
-/* an implementation of OpenSSL threading operations in terms
- * of the Python C thread library
- * Only used up to 1.0.2. OpenSSL 1.1.0+ has its own locking code.
- */
-
-static PyThread_type_lock *_ssl_locks = NULL;
-
-#if OPENSSL_VERSION_NUMBER >= 0x10000000
-/* use new CRYPTO_THREADID API. */
-static void
-_ssl_threadid_callback(CRYPTO_THREADID *id)
-{
-    CRYPTO_THREADID_set_numeric(id, PyThread_get_thread_ident());
-}
-#else
-/* deprecated CRYPTO_set_id_callback() API. */
-static unsigned long
-_ssl_thread_id_function (void) {
-    return PyThread_get_thread_ident();
-}
-#endif
-
-static void _ssl_thread_locking_function
-    (int mode, int n, const char *file, int line) {
-    /* this function is needed to perform locking on shared data
-       structures. (Note that OpenSSL uses a number of global data
-       structures that will be implicitly shared whenever multiple
-       threads use OpenSSL.) Multi-threaded applications will
-       crash at random if it is not set.
-
-       locking_function() must be able to handle up to
-       CRYPTO_num_locks() different mutex locks. It sets the n-th
-       lock if mode & CRYPTO_LOCK, and releases it otherwise.
-
-       file and line are the file number of the function setting the
-       lock. They can be useful for debugging.
-    */
-
-    if ((_ssl_locks == NULL) ||
-        (n < 0) || ((unsigned)n >= _ssl_locks_count))
-        return;
-
-    if (mode & CRYPTO_LOCK) {
-        PyThread_acquire_lock(_ssl_locks[n], 1);
-    } else {
-        PyThread_release_lock(_ssl_locks[n]);
-    }
-}
-
-static int _setup_ssl_threads(void) {
-
-    unsigned int i;
-
-    if (_ssl_locks == NULL) {
-        _ssl_locks_count = CRYPTO_num_locks();
-        _ssl_locks = PyMem_Calloc(_ssl_locks_count,
-                                  sizeof(PyThread_type_lock));
-        if (_ssl_locks == NULL) {
-            PyErr_NoMemory();
-            return 0;
-        }
-        for (i = 0;  i < _ssl_locks_count;  i++) {
-            _ssl_locks[i] = PyThread_allocate_lock();
-            if (_ssl_locks[i] == NULL) {
-                unsigned int j;
-                for (j = 0;  j < i;  j++) {
-                    PyThread_free_lock(_ssl_locks[j]);
-                }
-                PyMem_Free(_ssl_locks);
-                return 0;
-            }
-        }
-        CRYPTO_set_locking_callback(_ssl_thread_locking_function);
-#if OPENSSL_VERSION_NUMBER >= 0x10000000
-        CRYPTO_THREADID_set_callback(_ssl_threadid_callback);
-#else
-        CRYPTO_set_id_callback(_ssl_thread_id_function);
-#endif
-    }
-    return 1;
-}
-
-#endif  /* HAVE_OPENSSL_CRYPTO_LOCK for OpenSSL < 1.1.0 */
-
 PyDoc_STRVAR(module_doc,
 "Implementation module for SSL socket operations.  See the socket module\n\
 for documentation.");
@@ -5808,16 +5715,6 @@ PyInit__ssl(void)
     if (!socket_api)
         return NULL;
     PySocketModule = *socket_api;
-
-#ifdef HAVE_OPENSSL_CRYPTO_LOCK
-    /* note that this will start threading if not already started */
-    if (!_setup_ssl_threads()) {
-        return NULL;
-    }
-#else
-    /* OpenSSL 1.1.0 builtin thread support is enabled */
-    _ssl_locks_count++;
-#endif
 
     /* Add symbols to module dict */
     sslerror_type_slots[0].pfunc = PyExc_OSError;
