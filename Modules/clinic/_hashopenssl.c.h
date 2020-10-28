@@ -950,7 +950,7 @@ exit:
     return return_value;
 }
 
-#if (OPENSSL_VERSION_NUMBER > 0x10100000L && !defined(OPENSSL_NO_SCRYPT) && !defined(LIBRESSL_VERSION_NUMBER))
+#if defined(PY_OPENSSL_HAS_SCRYPT)
 
 PyDoc_STRVAR(_hashlib_scrypt__doc__,
 "scrypt($module, /, password, *, salt=None, n=None, r=None, p=None,\n"
@@ -1068,7 +1068,7 @@ exit:
     return return_value;
 }
 
-#endif /* (OPENSSL_VERSION_NUMBER > 0x10100000L && !defined(OPENSSL_NO_SCRYPT) && !defined(LIBRESSL_VERSION_NUMBER)) */
+#endif /* defined(PY_OPENSSL_HAS_SCRYPT) */
 
 PyDoc_STRVAR(_hashlib_hmac_singleshot__doc__,
 "hmac_digest($module, /, key, msg, digest)\n"
@@ -1299,8 +1299,6 @@ _hashlib_HMAC_hexdigest(HMACobject *self, PyObject *Py_UNUSED(ignored))
     return _hashlib_HMAC_hexdigest_impl(self);
 }
 
-#if !defined(LIBRESSL_VERSION_NUMBER)
-
 PyDoc_STRVAR(_hashlib_get_fips_mode__doc__,
 "get_fips_mode($module, /)\n"
 "--\n"
@@ -1335,8 +1333,6 @@ _hashlib_get_fips_mode(PyObject *module, PyObject *Py_UNUSED(ignored))
 exit:
     return return_value;
 }
-
-#endif /* !defined(LIBRESSL_VERSION_NUMBER) */
 
 PyDoc_STRVAR(_hashlib_compare_digest__doc__,
 "compare_digest($module, a, b, /)\n"
@@ -1413,8 +1409,4 @@ exit:
 #ifndef _HASHLIB_SCRYPT_METHODDEF
     #define _HASHLIB_SCRYPT_METHODDEF
 #endif /* !defined(_HASHLIB_SCRYPT_METHODDEF) */
-
-#ifndef _HASHLIB_GET_FIPS_MODE_METHODDEF
-    #define _HASHLIB_GET_FIPS_MODE_METHODDEF
-#endif /* !defined(_HASHLIB_GET_FIPS_MODE_METHODDEF) */
-/*[clinic end generated code: output=2bbd6159493f44ea input=a9049054013a1b77]*/
+/*[clinic end generated code: output=ca4e35cd581a6365 input=a9049054013a1b77]*/
