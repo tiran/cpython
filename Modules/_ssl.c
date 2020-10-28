@@ -3394,7 +3394,7 @@ set_maximum_version(PySSLContext *self, PyObject *arg, void *c)
     return set_min_max_proto_version(self, arg, 1);
 }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
+#ifdef TLS1_3_VERSION
 static PyObject *
 get_num_tickets(PySSLContext *self, void *c)
 {
@@ -3425,7 +3425,7 @@ set_num_tickets(PySSLContext *self, PyObject *arg, void *c)
 
 PyDoc_STRVAR(PySSLContext_num_tickets_doc,
 "Control the number of TLSv1.3 session tickets");
-#endif /* OpenSSL 1.1.1 */
+#endif /* TLS1_3_VERSION */
 
 static PyObject *
 get_security_level(PySSLContext *self, void *c)
@@ -4442,7 +4442,7 @@ static PyGetSetDef context_getsetlist[] = {
                       (setter) _PySSLContext_set_msg_callback, NULL},
     {"sni_callback", (getter) get_sni_callback,
                      (setter) set_sni_callback, PySSLContext_sni_callback_doc},
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
+#ifdef TLS1_3_VERSION
     {"num_tickets", (getter) get_num_tickets,
                     (setter) set_num_tickets, PySSLContext_num_tickets_doc},
 #endif
