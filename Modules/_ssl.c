@@ -6434,6 +6434,16 @@ PyDoc_STRVAR(module_doc,
 "Implementation module for SSL socket operations.  See the socket module\n\
 for documentation.");
 
+static PyModuleDef_Slot sslmodule_slots[] = {
+    {Py_mod_exec, sslmodule_init_types},
+    {Py_mod_exec, sslmodule_init_exceptions},
+    {Py_mod_exec, sslmodule_init_socketapi},
+    {Py_mod_exec, sslmodule_init_errorcodes},
+    {Py_mod_exec, sslmodule_init_constants},
+    {Py_mod_exec, sslmodule_init_versioninfo},
+    {Py_mod_exec, sslmodule_legacy},
+    {0, NULL}
+};
 
 static struct PyModuleDef _sslmodule = {
     PyModuleDef_HEAD_INIT,
@@ -6451,25 +6461,22 @@ PyMODINIT_FUNC
 PyInit__ssl(void)
 {
     PyObject *m;
+    PyModuleDef_Slot *slot;
+    int ret;
 
     m = PyModule_Create(&_sslmodule);
     if (m == NULL)
         return NULL;
 
-    if (sslmodule_init_types(m) != 0)
-        return NULL;
-    if (sslmodule_init_exceptions(m) != 0)
-        return NULL;
-    if (sslmodule_init_socketapi(m) != 0)
-        return NULL;
-    if (sslmodule_init_errorcodes(m) != 0)
-        return NULL;
-    if (sslmodule_init_constants(m) != 0)
-        return NULL;
-    if (sslmodule_init_versioninfo(m) != 0)
-        return NULL;
-    if (sslmodule_legacy(m) != 0)
-        return NULL;
+    /* manually run mod_exec slots */
+    for (slot = sslmodule_slots; slot && slot->slot; slot++) {
+        assert(slot->slot == Py_mod_exec);
+        ret = ((int (*)(PyObject *))slot->value)(m);
+        if (ret != 0) {
+            Py_DECREF(m);
+            return NULL;
+        }
+    }
 
     return m;
 }
