@@ -21,7 +21,7 @@ _PySSL_msg_callback(int write_p, int version, int content_type,
     threadstate = PyGILState_Ensure();
 
     ssl_obj = (PySSLSocket *)SSL_get_app_data(ssl);
-    assert(PySSLSocket_Check(ssl_obj));
+    assert(Py_IS_TYPE(ssl_obj, ssl_obj->ctx->state->PySSLSocket_Type));
     if (ssl_obj->ctx->msg_cb == NULL) {
         return;
     }
@@ -126,7 +126,7 @@ _PySSL_keylog_callback(const SSL *ssl, const char *line)
     threadstate = PyGILState_Ensure();
 
     ssl_obj = (PySSLSocket *)SSL_get_app_data(ssl);
-    assert(PySSLSocket_Check(ssl_obj));
+    assert(Py_IS_TYPE(ssl_obj, ssl_obj->ctx->state->PySSLSocket_Type));
     if (ssl_obj->ctx->keylog_bio == NULL) {
         return;
     }

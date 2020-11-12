@@ -399,7 +399,7 @@ _ssl__SSLContext(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *return_value = NULL;
     int proto_version;
 
-    if ((type == ((_sslmodulestate *)_sslmodulestate_global)->PySSLContext_Type) &&
+    if ((type == get_ssl_state_by_type(type)->PySSLContext_Type) &&
         !_PyArg_NoKeywords("_SSLContext", kwargs)) {
         goto exit;
     }
@@ -919,11 +919,11 @@ _ssl_MemoryBIO(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     PyObject *return_value = NULL;
 
-    if ((type == ((_sslmodulestate *)_sslmodulestate_global)->PySSLMemoryBIO_Type) &&
+    if ((type == get_ssl_state_by_type(type)->PySSLMemoryBIO_Type) &&
         !_PyArg_NoPositional("MemoryBIO", args)) {
         goto exit;
     }
-    if ((type == ((_sslmodulestate *)_sslmodulestate_global)->PySSLMemoryBIO_Type) &&
+    if ((type == get_ssl_state_by_type(type)->PySSLMemoryBIO_Type) &&
         !_PyArg_NoKeywords("MemoryBIO", kwargs)) {
         goto exit;
     }
@@ -1447,4 +1447,4 @@ exit:
 #ifndef _SSL_ENUM_CRLS_METHODDEF
     #define _SSL_ENUM_CRLS_METHODDEF
 #endif /* !defined(_SSL_ENUM_CRLS_METHODDEF) */
-/*[clinic end generated code: output=aeea5177e89aeb6c input=a9049054013a1b77]*/
+/*[clinic end generated code: output=9d7696bfd17be755 input=a9049054013a1b77]*/
