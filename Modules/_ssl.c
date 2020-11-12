@@ -77,6 +77,56 @@ static PySocketModule_APIObject PySocketModule;
 #  error "OPENSSL_THREADS is not defined, Python requires thread-safe OpenSSL"
 #endif
 
+/* ssl module state */
+typedef struct {
+    /* Types */
+    PyTypeObject *PySSLContext_Type;
+    PyTypeObject *PySSLSocket_Type;
+    PyTypeObject *PySSLMemoryBIO_Type;
+    PyTypeObject *PySSLSession_Type;
+    /* SSL error object */
+    PyObject *PySSLErrorObject;
+    PyObject *PySSLCertVerificationErrorObject;
+    PyObject *PySSLZeroReturnErrorObject;
+    PyObject *PySSLWantReadErrorObject;
+    PyObject *PySSLWantWriteErrorObject;
+    PyObject *PySSLSyscallErrorObject;
+    PyObject *PySSLEOFErrorObject;
+    /* Error mappings */
+    PyObject *err_codes_to_names;
+    PyObject *err_names_to_codes;
+    PyObject *lib_codes_to_names;
+    /* socket module API */
+    PySocketModule_APIObject *PySocketModule;
+} _sslmodulestate;
+
+static struct PyModuleDef _sslmodule_def;
+
+Py_LOCAL_INLINE(_sslmodulestate*)
+get_ssl_state(PyObject *module)
+{
+    void *state = PyModule_GetState(module);
+    assert(state != NULL);
+    return (_sslmodulestate *)state;
+}
+
+Py_LOCAL_INLINE(_sslmodulestate*)
+_get_ssl_state_by_type(PyTypeObject *type)
+{
+    PyObject *module;
+    /* slower approach, walk MRO
+     * required for SSLContext subclasses ??? */
+    module = _PyType_GetModuleByDef(type, &_sslmodule_def);
+    assert(module != NULL);
+    return get_ssl_state(module);
+}
+
+/* NOTE: PyState_FindModule is not supported with m_slots, see PEP 489
+ */
+#define _sslmodulestate_global get_ssl_state(PyState_FindModule(&_sslmodule_def))
+#define get_ssl_state_by_type(obj) _get_ssl_state_by_type((PyTypeObject*)(type))
+#define get_ssl_state_by_instance(obj) _get_ssl_state_by_type(Py_TYPE(obj))
+
 /* SSL error object */
 static PyObject *PySSLErrorObject;
 static PyObject *PySSLCertVerificationErrorObject;
@@ -6445,16 +6495,70 @@ static PyModuleDef_Slot sslmodule_slots[] = {
     {0, NULL}
 };
 
-static struct PyModuleDef _sslmodule = {
+static int
+sslmodule_traverse(PyObject *m, visitproc visit, void *arg)
+{
+    _sslmodulestate *state = get_ssl_state(m);
+
+    Py_VISIT(state->PySSLContext_Type);
+    Py_VISIT(state->PySSLSocket_Type);
+    Py_VISIT(state->PySSLMemoryBIO_Type);
+    Py_VISIT(state->PySSLSession_Type);
+    Py_VISIT(state->PySSLErrorObject);
+    Py_VISIT(state->PySSLCertVerificationErrorObject);
+    Py_VISIT(state->PySSLZeroReturnErrorObject);
+    Py_VISIT(state->PySSLWantReadErrorObject);
+    Py_VISIT(state->PySSLWantWriteErrorObject);
+    Py_VISIT(state->PySSLSyscallErrorObject);
+    Py_VISIT(state->PySSLEOFErrorObject);
+    Py_VISIT(state->err_codes_to_names);
+    Py_VISIT(state->err_names_to_codes);
+    Py_VISIT(state->lib_codes_to_names);
+    Py_VISIT(state->PySocketModule);
+
+    return 0;
+}
+
+static int
+sslmodule_clear(PyObject *m)
+{
+    _sslmodulestate *state = get_ssl_state(m);
+
+    Py_CLEAR(state->PySSLContext_Type);
+    Py_CLEAR(state->PySSLSocket_Type);
+    Py_CLEAR(state->PySSLMemoryBIO_Type);
+    Py_CLEAR(state->PySSLSession_Type);
+    Py_CLEAR(state->PySSLErrorObject);
+    Py_CLEAR(state->PySSLCertVerificationErrorObject);
+    Py_CLEAR(state->PySSLZeroReturnErrorObject);
+    Py_CLEAR(state->PySSLWantReadErrorObject);
+    Py_CLEAR(state->PySSLWantWriteErrorObject);
+    Py_CLEAR(state->PySSLSyscallErrorObject);
+    Py_CLEAR(state->PySSLEOFErrorObject);
+    Py_CLEAR(state->err_codes_to_names);
+    Py_CLEAR(state->err_names_to_codes);
+    Py_CLEAR(state->lib_codes_to_names);
+    Py_CLEAR(state->PySocketModule);
+
+    return 0;
+}
+
+static void
+sslmodule_free(void *m)
+{
+    sslmodule_clear((PyObject *)m);
+}
+
+static struct PyModuleDef _sslmodule_def = {
     PyModuleDef_HEAD_INIT,
-    "_ssl",
-    module_doc,
-    -1,
-    PySSL_methods,
-    NULL,
-    NULL,
-    NULL,
-    NULL
+    .m_name = "_ssl",
+    .m_doc = module_doc,
+    .m_size = sizeof(_sslmodulestate),
+    .m_methods = PySSL_methods,
+    .m_slots = NULL,
+    .m_traverse = sslmodule_traverse,
+    .m_clear = sslmodule_clear,
+    .m_free = sslmodule_free
 };
 
 PyMODINIT_FUNC
@@ -6464,7 +6568,7 @@ PyInit__ssl(void)
     PyModuleDef_Slot *slot;
     int ret;
 
-    m = PyModule_Create(&_sslmodule);
+    m = PyModule_Create(&_sslmodule_def);
     if (m == NULL)
         return NULL;
 
