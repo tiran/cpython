@@ -18,6 +18,11 @@
 
 #include "Python.h"
 
+/* Include symbols from _socket module */
+#include "socketmodule.h"
+
+#include "_ssl.h"
+
 /* Redefined below for Windows debug builds after important #includes */
 #define _PySSL_FIX_ERRNO
 
@@ -32,8 +37,6 @@
 #define PySSL_UNBLOCK_THREADS   PySSL_BEGIN_ALLOW_THREADS_S(_save);
 #define PySSL_END_ALLOW_THREADS PySSL_END_ALLOW_THREADS_S(_save); }
 
-/* Include symbols from _socket module */
-#include "socketmodule.h"
 
 #if defined(HAVE_POLL_H)
 #include <poll.h>
@@ -75,46 +78,13 @@
 #  error "OPENSSL_THREADS is not defined, Python requires thread-safe OpenSSL"
 #endif
 
-/* ssl module state */
-typedef struct {
-    /* Types */
-    PyTypeObject *PySSLContext_Type;
-    PyTypeObject *PySSLSocket_Type;
-    PyTypeObject *PySSLMemoryBIO_Type;
-    PyTypeObject *PySSLSession_Type;
-    /* SSL error object */
-    PyObject *PySSLErrorObject;
-    PyObject *PySSLCertVerificationErrorObject;
-    PyObject *PySSLZeroReturnErrorObject;
-    PyObject *PySSLWantReadErrorObject;
-    PyObject *PySSLWantWriteErrorObject;
-    PyObject *PySSLSyscallErrorObject;
-    PyObject *PySSLEOFErrorObject;
-    /* Error mappings */
-    PyObject *err_codes_to_names;
-    PyObject *err_names_to_codes;
-    PyObject *lib_codes_to_names;
-    /* socket module API */
-    PySocketModule_APIObject *PySocketModule;
-} _sslmodulestate;
 
-static struct PyModuleDef _sslmodule_def;
-
-Py_LOCAL_INLINE(_sslmodulestate*)
-get_ssl_state(PyObject *module)
-{
-    void *state = PyModule_GetState(module);
-    assert(state != NULL);
-    return (_sslmodulestate *)state;
-}
-
-#define get_ssl_state_by_type(type) \
-    (get_ssl_state(_PyType_GetModuleByDef(type, &_sslmodule_def)))
 
 struct py_ssl_error_code {
     const char *mnemonic;
     int library, reason;
 };
+
 struct py_ssl_library_code {
     const char *library;
     int code;
