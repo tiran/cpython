@@ -2021,8 +2021,11 @@ hashlib_openssl_legacy_init(PyObject *module)
 static int
 hashlib_init_evptype(PyObject *module)
 {
-    return PyModule_AddTypeFromSpec(
-        module, &EVPtype_spec, NULL, &(get_hashlib_state(module)->EVPtype));
+    _hashlibstate *state = get_hashlib_state(module);
+
+    state->EVPtype = PyModule_AddNewTypeFromSpec(
+        module, &EVPtype_spec, NULL);
+    return state->EVPtype == NULL ? -1 : 0;
 }
 
 static int
@@ -2034,12 +2037,9 @@ hashlib_init_evpxoftype(PyObject *module)
     if (state->EVPtype == NULL) {
         return -1;
     }
-    bases = PyTuple_Pack(1, state->EVPtype);
-    if (bases == NULL) {
-        return -1;
-    }
-    return PyModule_AddTypeFromSpec(
-        module, &EVPXOFtype_spec, state->EVPtype, &(state->EVPXOFtype));
+    state->EVPXOFtype = PyModule_AddNewTypeFromSpec(
+        module, &EVPXOFtype_spec, (PyObject *)state->EVPtype);
+    return state->EVPXOFtype == NULL ? -1 : 0;
 #endif
     return 0;
 }
@@ -2047,8 +2047,11 @@ hashlib_init_evpxoftype(PyObject *module)
 static int
 hashlib_init_hmactype(PyObject *module)
 {
-    return PyModule_AddTypeFromSpec(
-        module, &HMACtype_spec, NULL, &(get_hashlib_state(module)->HMACtype));
+     _hashlibstate *state = get_hashlib_state(module);
+
+    state->HMACtype = PyModule_AddNewTypeFromSpec(
+        module, &HMACtype_spec, NULL);
+    return state->HMACtype == NULL ? -1 : 0;
 }
 
 static PyModuleDef_Slot hashlib_slots[] = {
