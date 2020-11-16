@@ -15705,6 +15705,7 @@ static PyModuleConst_Def _posix_constants[] = {
 
 static PyModuleDef_Slot posixmodile_slots[] = {
     {Py_mod_exec, posixmodule_exec},
+    {Py_mod_constants, _posix_constants},
     {0, NULL}
 };
 
@@ -15718,7 +15719,6 @@ static struct PyModuleDef posixmodule = {
     .m_traverse = _posix_traverse,
     .m_clear = _posix_clear,
     .m_free = _posix_free,
-    .m_constants = _posix_constants,
 };
 
 PyMODINIT_FUNC
