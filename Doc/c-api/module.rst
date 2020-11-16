@@ -570,7 +570,7 @@ state:
 
    .. versionadded:: 3.9
 
-.. c:function:: PyTypeeObject * PyModule_AddNewTypeFromSpec(PyObject *module, PyType_Spec *spec, PyObject *base)
+.. c:function:: PyTypeObject * PyModule_AddNewTypeFromSpec(PyObject *module, PyType_Spec *spec, PyObject *base)
 
    Initialize a new type and add it to *module*.
    The function is equivalent to :c:func:`PyType_FromModuleAndSpec` followed
@@ -651,7 +651,7 @@ state:
 
       Attribute type.
 
-   .. c:member:: union value
+   .. c:member:: void *value
 
       Value of the module constant definition, whose meaning depends on
       *type*.
