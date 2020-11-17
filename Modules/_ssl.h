@@ -4,7 +4,6 @@
 /*
  * ssl module state
  */
-
 typedef struct {
     /* Types */
     PyTypeObject *PySSLContext_Type;
@@ -37,7 +36,10 @@ get_ssl_state(PyObject *module)
     return (_sslmodulestate *)state;
 }
 
-#define get_ssl_state_by_type(type) \
+#define get_state_type(type) \
     (get_ssl_state(_PyType_GetModuleByDef(type, &_sslmodule_def)))
+#define get_state_ctx(c) (((PySSLContext *)(c))->state)
+#define get_state_sock(s) (((PySSLSocket *)(s))->ctx->state)
+#define get_state_mbio(b) ((_sslmodulestate *)PyType_GetModuleState(Py_TYPE(b)))
 
 #endif /* Py_SSL_H */
