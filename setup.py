@@ -2381,7 +2381,8 @@ class PyBuildExt(build_ext):
                     '_ssl/debughelpers.c',
                     '_ssl/misc.c',
                     '_ssl/cert.c',
-                    '_ssl/pkey.c'
+                    '_ssl/pkey.c',
+                    '_ssl/truststore.c'
                 ])
             )
         else:

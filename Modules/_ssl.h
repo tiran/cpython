@@ -25,15 +25,21 @@ typedef struct {
     Py_hash_t hash;
 } PySSLCertificate;
 
+typedef struct {
+    PyObject_HEAD
+    X509_STORE *store;
+    /* OpenSSL 1.1.1 has no X509_STORE_dup() and X509_LOOKUP_dup.
+     * Keep a list of hash directories so we can copy them over. */
+    PyObject *hash_dirs;
+} PySSLTrustStore;
+
 /* ************************************************************************
  * helpers and utils
  */
 static BIO *_PySSL_filebio(PyObject *path);
 static BIO *_PySSL_bufferbio(Py_buffer *b);
 static PyObject *_PySSL_BytesFromBIO(BIO *bio);
-#if 0
 static PyObject *_PySSL_UnicodeFromBIO(BIO *bio, const char *error);
-#endif
 
 /* ************************************************************************
  * password callback

@@ -495,6 +495,7 @@ static PyTypeObject *PySSLMemoryBIO_Type;
 static PyTypeObject *PySSLSession_Type;
 static PyTypeObject *PySSLPrivateKey_Type;
 static PyTypeObject *PySSLCertificate_Type;
+static PyTypeObject *PySSLTrustStore_Type;
 
 static inline _PySSLError _PySSL_errno(int failed, const SSL *ssl, int retcode)
 {
@@ -1863,6 +1864,7 @@ _certificate_to_der(X509 *certificate)
 #include "_ssl/misc.c"
 #include "_ssl/cert.c"
 #include "_ssl/pkey.c"
+#include "_ssl/truststore.c"
 
 /*[clinic input]
 _ssl._test_decode_cert
@@ -6124,6 +6126,12 @@ sslmodule_init_types(PyObject *module)
     if (PySSLPrivateKey_Type == NULL)
         return -1;
 
+    PySSLTrustStore_Type = (PyTypeObject *)PyType_FromModuleAndSpec(
+        module, &PySSLTrustStore_spec, NULL
+    );
+    if (PySSLTrustStore_Type == NULL)
+        return -1;
+
     if (PyModule_AddType(module, PySSLContext_Type))
         return -1;
     if (PyModule_AddType(module, PySSLSocket_Type))
@@ -6135,6 +6143,8 @@ sslmodule_init_types(PyObject *module)
     if (PyModule_AddType(module, PySSLCertificate_Type))
         return -1;
     if (PyModule_AddType(module, PySSLPrivateKey_Type))
+        return -1;
+    if (PyModule_AddType(module, PySSLTrustStore_Type))
         return -1;
 
     return 0;
