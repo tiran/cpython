@@ -88,6 +88,27 @@ exit:
     return return_value;
 }
 
+#if (OPENSSL_VERSION_1_1)
+
+PyDoc_STRVAR(_ssl__SSLSocket_verified_chain__doc__,
+"verified_chain($self, /)\n"
+"--\n"
+"\n");
+
+#define _SSL__SSLSOCKET_VERIFIED_CHAIN_METHODDEF    \
+    {"verified_chain", (PyCFunction)_ssl__SSLSocket_verified_chain, METH_NOARGS, _ssl__SSLSocket_verified_chain__doc__},
+
+static PyObject *
+_ssl__SSLSocket_verified_chain_impl(PySSLSocket *self);
+
+static PyObject *
+_ssl__SSLSocket_verified_chain(PySSLSocket *self, PyObject *Py_UNUSED(ignored))
+{
+    return _ssl__SSLSocket_verified_chain_impl(self);
+}
+
+#endif /* (OPENSSL_VERSION_1_1) */
+
 PyDoc_STRVAR(_ssl__SSLSocket_shared_ciphers__doc__,
 "shared_ciphers($self, /)\n"
 "--\n"
@@ -1420,6 +1441,10 @@ exit:
 
 #endif /* defined(_MSC_VER) */
 
+#ifndef _SSL__SSLSOCKET_VERIFIED_CHAIN_METHODDEF
+    #define _SSL__SSLSOCKET_VERIFIED_CHAIN_METHODDEF
+#endif /* !defined(_SSL__SSLSOCKET_VERIFIED_CHAIN_METHODDEF) */
+
 #ifndef _SSL__SSLSOCKET_SELECTED_NPN_PROTOCOL_METHODDEF
     #define _SSL__SSLSOCKET_SELECTED_NPN_PROTOCOL_METHODDEF
 #endif /* !defined(_SSL__SSLSOCKET_SELECTED_NPN_PROTOCOL_METHODDEF) */
@@ -1447,4 +1472,4 @@ exit:
 #ifndef _SSL_ENUM_CRLS_METHODDEF
     #define _SSL_ENUM_CRLS_METHODDEF
 #endif /* !defined(_SSL_ENUM_CRLS_METHODDEF) */
-/*[clinic end generated code: output=2bb53a80040c9b35 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=6fed72185e7b31de input=a9049054013a1b77]*/
