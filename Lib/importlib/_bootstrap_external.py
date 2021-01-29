@@ -28,6 +28,7 @@ import _io
 import sys
 import _warnings
 import marshal
+import mmap
 
 
 _MS_WINDOWS = (sys.platform == 'win32')
@@ -1021,10 +1022,28 @@ class FileLoader:
         """Return the data from path as raw bytes."""
         if isinstance(self, (SourceLoader, ExtensionFileLoader)):
             with _io.open_code(str(path)) as file:
-                return file.read()
+                return self._mmap(file)
         else:
             with _io.FileIO(path, 'r') as file:
-                return file.read()
+                return self._mmap(file)
+
+    def _mmap(self, f):
+        fd = f.fileno()
+        stat = _os.fstat(fd)
+        size = stat.st_size
+        if size == 0:
+            # cannot mmap empty file
+            return b''
+        if sys.platform == "win32":
+            m = mmap.mmap(fd, size, access=mmap.ACCESS_READ)
+        else:
+            m = mmap.mmap(fd, size, mmap.MAP_SHARED, mmap.PROT_READ)
+        # tell Kernel we read data sequentially
+        try:
+            m.madvise(mmap.MADV_SEQUENTIAL, 0, size)
+        except Exception:
+            pass
+        return m
 
     @_check_name
     def get_resource_reader(self, module):
