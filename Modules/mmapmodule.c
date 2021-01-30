@@ -114,8 +114,11 @@ typedef struct {
     access_mode access;
 } mmap_object;
 
+static struct PyModuleDef mmapmodule;
+
 typedef struct {
     PyTypeObject *mmap_object_type;
+    PyObject *empty_file_error;
 } mmap_state;
 
 static mmap_state *
@@ -202,7 +205,7 @@ mmap_close_method(mmap_object *self, PyObject *unused)
     self->fd = -1;
     self->data = NULL;
     Py_BEGIN_ALLOW_THREADS
-    if (0 <= fd)
+    if (fd >= 0)
         (void) close(fd);
     if (data != NULL) {
         munmap(data, self->size);
@@ -1137,13 +1140,14 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
     int fd, flags = MAP_SHARED, prot = PROT_WRITE | PROT_READ;
     int devzero = -1;
     int access = (int)ACCESS_DEFAULT;
+    int keepfd = 1;
     static char *keywords[] = {"fileno", "length",
                                "flags", "prot",
-                               "access", "offset", NULL};
+                               "access", "offset", "keepfd", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "in|iii" _Py_PARSE_OFF_T, keywords,
+    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "in|iiip" _Py_PARSE_OFF_T, keywords,
                                      &fd, &map_size, &flags, &prot,
-                                     &access, &offset))
+                                     &access, &offset, &keepfd))
         return NULL;
     if (map_size < 0) {
         PyErr_SetString(PyExc_OverflowError,
@@ -1211,7 +1215,9 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
     if (fd != -1 && fstat_result == 0 && S_ISREG(status.st_mode)) {
         if (map_size == 0) {
             if (status.st_size == 0) {
-                PyErr_SetString(PyExc_ValueError,
+                mmap_state *state = get_mmap_state(
+                    _PyType_GetModuleByDef(type, &mmapmodule));
+                PyErr_SetString(state->empty_file_error,
                                 "cannot mmap an empty file");
                 return NULL;
             }
@@ -1265,12 +1271,15 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
         }
 #endif
     }
-    else {
+    else if (keepfd) {
         m_obj->fd = _Py_dup(fd);
         if (m_obj->fd == -1) {
             Py_DECREF(m_obj);
             return NULL;
         }
+    }
+    else {
+        m_obj->fd = -1;
     }
 
     m_obj->data = mmap(NULL, map_size,
@@ -1506,6 +1515,7 @@ mmap_traverse(PyObject *module, visitproc visit, void *arg)
 {
     mmap_state *state = get_mmap_state(module);
     Py_VISIT(state->mmap_object_type);
+    Py_VISIT(state->empty_file_error);
     return 0;
 }
 
@@ -1514,6 +1524,7 @@ mmap_clear(PyObject *module)
 {
     mmap_state *state = get_mmap_state(module);
     Py_CLEAR(state->mmap_object_type);
+    Py_CLEAR(state->empty_file_error);
     return 0;
 }
 
@@ -1541,6 +1552,16 @@ mmap_exec(PyObject *module)
         return -1;
     }
     if (PyModule_AddType(module, state->mmap_object_type) < 0) {
+        return -1;
+    }
+
+    state->empty_file_error = PyErr_NewException(
+        "mmap.EmptyFileError", PyExc_ValueError, NULL
+    );
+    if (state->empty_file_error == NULL) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(module, "EmptyFileError", state->empty_file_error) < 0) {
         return -1;
     }
 

@@ -572,8 +572,8 @@ PyFile_OpenCodeObject(PyObject *path)
     } else {
         iomod = PyImport_ImportModule("_io");
         if (iomod) {
-            f = _PyObject_CallMethodId(iomod, &PyId_open, "Os",
-                                       path, "rb");
+            f = _PyObject_CallMethodId(iomod, &PyId_open, "Osi",
+                                       path, "rb", 0);
             Py_DECREF(iomod);
         }
     }

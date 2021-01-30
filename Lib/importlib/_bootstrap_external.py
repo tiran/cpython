@@ -1029,20 +1029,14 @@ class FileLoader:
 
     def _mmap(self, f):
         fd = f.fileno()
-        stat = _os.fstat(fd)
-        size = stat.st_size
-        if size == 0:
+        try:
+            if sys.platform == "win32":
+                m = mmap.mmap(fd, 0, access=mmap.ACCESS_READ)
+            else:
+                m = mmap.mmap(fd, 0, flags=mmap.MAP_SHARED, prot=mmap.PROT_READ, keepfd=False)
+        except mmap.EmptyFileError:
             # cannot mmap empty file
             return b''
-        if sys.platform == "win32":
-            m = mmap.mmap(fd, size, access=mmap.ACCESS_READ)
-        else:
-            m = mmap.mmap(fd, size, mmap.MAP_SHARED, mmap.PROT_READ)
-        # tell Kernel we read data sequentially
-        try:
-            m.madvise(mmap.MADV_SEQUENTIAL, 0, size)
-        except Exception:
-            pass
         return m
 
     @_check_name
